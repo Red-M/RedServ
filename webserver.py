@@ -111,8 +111,7 @@ def sysinfo():
 def sieve(sievedata,sievetype):
     if os.path.exists(os.path.abspath('pages')+bs+"sieve-"+sievetype+".py"):
         execfile(os.path.abspath('pages')+bs+"sieve-"+sievetype+".py",globals(),sievedata)
-        return(sievedata)
-    return()
+    return(sievedata)
 
 def vhosts(virt_host):
     #print(virt_host)
