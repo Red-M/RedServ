@@ -206,10 +206,10 @@ class WebInterface:
         ###Start
         if os.path.exists(os.path.abspath('pages')+bs+"sieve-in.py"):
             datsieve = ""
+            #global cherrypy
             sievedata = {"cherrypy": cherrypy, "page":virt_host+bs+bs.join(list), "data": datsieve, "bad":bad}
             sievedata = sieve(sievedata,"in")
             bad = sievedata['bad']
-            global cherrypy
             cherrypy = sievedata['cherrypy']
         if bad == False:
             headers = {}
@@ -281,7 +281,6 @@ class WebInterface:
                 datatoreturn = sieve_out(datatoreturn)
                 return(datatoreturn["datareturned"])
             datatoreturn = sieve(datatoreturn,"out")
-            global cj
             cj = datatoreturn['cj']
             #cherrypy.request = datatoreturn['request']
             responsecode = datatoreturn['response']
