@@ -9,6 +9,7 @@ Requirements:
 - Mako
 
 Installing:
+
 1. Install Python 2.7 or higher
 
 2. Install Cherrypy or Cherrypy3 on ubuntu (python-cherrypy or python-cherrypy3)
