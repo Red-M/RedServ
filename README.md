@@ -20,7 +20,7 @@ Installing:
 
 5. Run ./webserver.py
 
-6. Configure the setting via ./config (config file to be added sometime soon)
+6. Configure the settings via ./config (config file to be added sometime soon)
 
 7. run ./webserver.py
 
