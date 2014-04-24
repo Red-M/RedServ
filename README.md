@@ -10,12 +10,19 @@ Requirements:
 
 Installing:
 1. Install Python 2.7 or higher
+
 2. Install Cherrypy or Cherrypy3 on ubuntu (python-cherrypy or python-cherrypy3)
+
 3. Install mako (python-mako)
+
 4. git clone https://github.com/Red-M/RedServ.git
+
 5. Run ./webserver.py
+
 6. Configure the setting via ./config (config file to be added sometime soon)
+
 7. run ./webserver.py
+
 8. Drop web site files into ./pages
 
 opitional:

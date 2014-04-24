@@ -8,7 +8,7 @@ def regexmatch2(text,regex):
 
 def sieve(cherrypy,page,data,bad):
     if "host" in cherrypy.request.headers:
-        if cherrypy.request.headers['Host'] == "devin.red-m.net":
+        if cherrypy.request.headers['Host'] == "host":
             cherrypy.response.status = 404
             bad = True
         if ":" in cherrypy.request.headers["host"]:
@@ -25,7 +25,7 @@ def sieve(cherrypy,page,data,bad):
             cherrypy.response.status = 404
             bad = True
     if "Host" in cherrypy.request.headers:
-        if cherrypy.request.headers['Host'] == "devin.red-m.net":
+        if cherrypy.request.headers['Host'] == "HOST":
             cherrypy.response.status = 404
             bad = True
     if "Accept-Language" in cherrypy.request.headers:
@@ -38,7 +38,7 @@ def sieve(cherrypy,page,data,bad):
             bad = True
     else:
         if "Host" in cherrypy.request.headers:
-            if cherrypy.request.headers['Host'] == "munin.red-m.net":
+            if cherrypy.request.headers['Host'] == "HOST2":
                 cherrypy.response.status = 404
                 bad = True
     return(cherrypy,page,data,bad)

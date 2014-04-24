@@ -16,7 +16,7 @@ def sieve(params,datareturned,cj,headers,response,request):
         datareturned = str(datareturned).replace(os.path.abspath('pages')+"\\"+virthost,"")
         datareturned = str(datareturned).replace(os.path.abspath('pages'),"")
         datareturned = str(datareturned).replace(str(os.path.abspath('pages')).replace("\\pages",""),"")
-    datareturned = str(datareturned).replace("4dff0fdd8d51b65f9adcbaf0a3c84319","")
+    datareturned = str(datareturned).replace("EXAMPLE TEXT STRING","")
     datareturned = datareturned + debughandler(params)
     return(params,datareturned,cj,headers,response,request)
     
