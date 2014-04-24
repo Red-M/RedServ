@@ -24,11 +24,15 @@ from cookielib import CookieJar
 global current_dir
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
+global bs
+bs = ""
+if os.name == "posix":
+    bs = "/"
+if os.name == "nt":
+    bs = "\\"
+
 def template_reload(current_dir):
-    if os.name == 'posix':
-        lookup = TemplateLookup(directories=[current_dir+'/templates'])
-    if os.name == 'nt':
-        lookup = TemplateLookup(directories=[current_dir+'\\templates'])
+    lookup = TemplateLookup(directories=[current_dir+bs+'templates'])
     return lookup
     
 lookup = template_reload(current_dir)
@@ -93,7 +97,7 @@ def filepicker(filename,fileext):
                 open(filename+data).read()
                 filename = (filename+data)
             except Exception,e:
-                filename = (filename+"/index"+data)
+                filename = (filename+bs+"index"+data)
     return(filename)
     
     
@@ -104,64 +108,33 @@ def sysinfo():
         (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
     return(nodename)
     
-def sieve_out(datatoreturn):
-    if os.name == "posix":
-        if os.path.exists(os.path.abspath('pages')+"/sieve-out.py"):
-            execfile(os.path.abspath('pages')+"/sieve-out.py",globals(),datatoreturn)
-    if os.name == "nt":
-        if os.path.exists(os.path.abspath('pages')+"\\sieve-out.py"):
-            execfile(os.path.abspath('pages')+"\\sieve-out.py",globals(),datatoreturn)
-    return(datatoreturn)
-
-def sieve_in(sievedata):
-    if os.name == "posix":
-        if os.path.exists(os.path.abspath('pages')+"/sieve-in.py"):
-            execfile(os.path.abspath('pages')+"/sieve-in.py",globals(),sievedata)
-    if os.name == "nt":
-        if os.path.exists(os.path.abspath('pages')+"\\sieve-in.py"):
-            execfile(os.path.abspath('pages')+"\\sieve-in.py",globals(),sievedata)
-    return(sievedata)
+def sieve(sievedata,sievetype):
+    if os.path.exists(os.path.abspath('pages')+bs+"sieve-"+sievetype+".py"):
+        execfile(os.path.abspath('pages')+bs+"sieve-"+sievetype+".py",globals(),sievedata)
+        return(sievedata)
+    return()
 
 def vhosts(virt_host):
     #print(virt_host)
-    if os.name=="posix":
-        hosts = os.listdir(os.path.abspath('pages'))
-        if ":" in virt_host:
-            pos = virt_host.find(":")
-            virt_host = virt_host[:pos]
-        pos = virt_host.find(".")
-        if os.path.exists(os.path.abspath('pages')+"/"+virt_host[pos:]):
-            data = virt_host[pos:]
-            hostlen = len(data)
-            return(data+"/"+virt_host[:-hostlen])
-        else:
-            for data in hosts:
-                if virt_host.endswith(data):
-                    hostlen = len(data)
-                    #print(data)
-                    logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+"	"+virt_host[:-hostlen]+"\n"))
-                    logging(logline)
-                    #print("Warning Bad vhost detection used, extra resources used")
-                    return(data+"/"+virt_host[:-hostlen])
-    if os.name=="nt":
-        hosts = os.listdir(os.path.abspath('pages'))
-        if ":" in virt_host:
-            pos = virt_host.find(":")
-            virt_host = virt_host[:pos]
-        pos = virt_host.find(".")
-        if os.path.exists(os.path.abspath('pages')+"\\"+virt_host[pos:]):
-            data = virt_host[pos:]
-            hostlen = len(data)
-            return(data+"\\"+virt_host[:-hostlen])
-        else:
-            for data in hosts:
-                if virt_host.endswith(data):
-                    hostlen = len(data)
-                    #print(data)
-                    logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+"	"+virt_host[:-hostlen]+"\n"))
-                    logging(logline)
-                    #print("Warning Bad vhost detection used, extra resources used")
-                    return(data+"\\"+virt_host[:-hostlen])
+    hosts = os.listdir(os.path.abspath('pages'))
+    if ":" in virt_host:
+        pos = virt_host.find(":")
+        virt_host = virt_host[:pos]
+    pos = virt_host.find(".")
+    if os.path.exists(os.path.abspath('pages')+bs+virt_host[pos:]):
+        data = virt_host[pos:]
+        hostlen = len(data)
+        return(data+bs+virt_host[:-hostlen])
+    else:
+        for data in hosts:
+            if virt_host.endswith(data):
+                hostlen = len(data)
+                #print(data)
+                logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+"	"+virt_host[:-hostlen]+"\n"))
+                logging(logline)
+                #print("Warning Bad vhost detection used, extra resources used")
+                return(data+bs+virt_host[:-hostlen])
+
     
 def notfound(cherrypy,virt_host,paramlines,list,params):
     cherrypy.response.status = 404
@@ -193,29 +166,16 @@ def debughandler(params):
     
 def logging(logline):
     nodename = sysinfo()
-    if os.name == 'posix':
-        logfolder = current_dir+"/logs/"+nodename+"/"+time.strftime("%Y")+"/"+time.strftime("%m")
-        logfile = logfolder+"/"+time.strftime("%d")+".txt"
-        if not os.path.exists(logfolder):
-            os.makedirs(logfolder)
-        if os.path.exists(logfile):
-            open(logfile,"a").write(logline)
-            open(current_dir+"/logs/today."+nodename+".log","a").write(logline)
-        if not os.path.exists(logfile):
-            open(logfile,"a").write(logline)
-            open(current_dir+"/logs/today."+nodename+".log","w").write(logline)
-            
-    if os.name == 'nt':
-        logfolder = current_dir+"\\logs\\"+nodename+"\\"+time.strftime("%Y")+"\\"+time.strftime("%m")
-        logfile = logfolder+"\\"+time.strftime("%d")+".txt"
-        if not os.path.exists(logfolder):
-            os.makedirs(logfolder)
-        if os.path.exists(logfile):
-            open(logfile,"a").write(logline)
-            open(current_dir+"\\logs\\today."+nodename+".log","a").write(logline)
-        if not os.path.exists(logfile):
-            open(logfile,"a").write(logline)
-            open(current_dir+"\\logs\\today."+nodename+".log","w").write(logline)
+    logfolder = current_dir+bs+"logs"+bs+nodename+bs+time.strftime("%Y")+bs+time.strftime("%m")
+    logfile = logfolder+bs+time.strftime("%d")+".txt"
+    if not os.path.exists(logfolder):
+        os.makedirs(logfolder)
+    if os.path.exists(logfile):
+        open(logfile,"a").write(logline)
+        open(current_dir+bs+"logs"+bs+"today."+nodename+".log","a").write(logline)
+    if not os.path.exists(logfile):
+        open(logfile,"a").write(logline)
+        open(current_dir+bs+"logs"+bs+"today."+nodename+".log","w").write(logline)
         
 class WebInterface:
     """ main web interface class """
@@ -244,217 +204,108 @@ class WebInterface:
         global lookup
         lookup = template_reload(current_dir)
             
-        ###Linux
-        if os.name == 'posix':
-            
-            if os.path.exists(os.path.abspath('pages')+"/sieve-in.py"):
-                datsieve = ""
-                sievedata = {"cherrypy": cherrypy, "page":virt_host+"/"+"/".join(list), "data": datsieve, "bad":bad}
-                sievedata = sieve_in(sievedata)
-                bad = sievedata['bad']
-                global cherrypy
-                cherrypy = sievedata['cherrypy']
-            if bad == False:
-                headers = {}
-                responsecode = 200
-                try:
-                    virtloc = os.path.abspath('pages')+"/"+vhosts(virt_host)+"/"
-                except Exception,e:
-                    cherrypy.response.status = 404
+        ###Start
+        if os.path.exists(os.path.abspath('pages')+bs+"sieve-in.py"):
+            datsieve = ""
+            sievedata = {"cherrypy": cherrypy, "page":virt_host+bs+bs.join(list), "data": datsieve, "bad":bad}
+            sievedata = sieve(sievedata,"in")
+            bad = sievedata['bad']
+            global cherrypy
+            cherrypy = sievedata['cherrypy']
+        if bad == False:
+            headers = {}
+            responsecode = 200
+            try:
+                virtloc = os.path.abspath('pages')+bs+vhosts(virt_host)+bs
+            except Exception,e:
+                cherrypy.response.status = 404
+                logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
+                logging(logline)
+                return("")
+            if len(list)>=1:
+                if str(list[0]).lower()=="static":
+                    if not os.path.exists(current_dir+bs+bs.join(list)):
+                        return(notfound(cherrypy,virt_host,paramlines,list,params))
+                    if cherrypy.response.status==None:
+                        cherrypy.response.status = 200
                     logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
                     logging(logline)
-                    return("")
-                if len(list)>=1:
-                    if str(list[0]).lower()=="static":
-                        if not os.path.exists(current_dir+"/"+"/".join(list)):
-                            return(notfound(cherrypy,virt_host,paramlines,list,params))
-                        if cherrypy.response.status==None:
-                            cherrypy.response.status = 200
-                        logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                        logging(logline)
-                        #print(databack.status)
-                        return cherrypy.lib.static.serve_file(current_dir+"/"+"/".join(list))
-                cherrypy.response.headers['X-Best-Pony'] = "Derpy Hooves"
-                cherrypy.response.headers['X-Comment'] = "Someone is reading my headers... >_>"
-                #datareturned = ""
-                if not os.path.exists(virtloc):
-                    return("")
-                filename = (virtloc+"/".join(list)).replace("..","").replace("//","/")
-                #print(filename)
-                try:
-                    bang = os.listdir(filename)
-                except Exception,e:
-                    #print(e)
-                    bang = ""
-                    if str(e).startswith("[Errno 2] No such file or directory:"):
-                        filename = filepicker(filename,fileext)
-                        if not os.path.exists(filename):
-                            return(notfound2(cherrypy,e,virtloc,params))
-                    if str(e).startswith("[Errno 20] Not a directory:"):
-                        #print("got")
-                        filename = filepicker(filename,fileext)
-                if not bang=="":
-                    filename = filepicker(filename,folderext)
-                for data in fileext:
-                    if filename.endswith(data) and os.path.exists(filename) and (not filename.endswith(".py")):
-                        typedat = mimetypes.guess_type(filename)
-                        #print(typedat)
-                        (cherrypy.response.headers['Content-Type'],nothing) = typedat
-                cherrypy.response.headers['Cache-Control'] = 'no-cache'
-                datatoreturn = {"params":params,"datareturned":"'","cj":cj,"headers":headers,"response":responsecode,"request":cherrypy.request}
-                try:
-                    if filename.endswith(".py"):
-                        execfile(filename,globals(),datatoreturn)
-                    else:
-                        f = open(filename, 'r').read()
-                        cherrypy.response.status = 200
-                        logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                        logging(logline)
-                        return(f+debughandler(params))
-                except Exception,e:
-                    #print(e)
-                    type_, value_, traceback_ = sys.exc_info()
-                    ex = traceback.format_exception(type_, value_, traceback_)
-                    trace = ""
-                    for data in ex:
-                        trace = str(trace+data).replace("\n","<br>")
-                    cherrypy.response.status = 404
-                    datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
-                    datatoreturn = sieve_out(datatoreturn)
-                    return(datatoreturn["datareturned"])
-                datatoreturn = sieve_out(datatoreturn)
-                global cj
-                cj = datatoreturn['cj']
-                #cherrypy.request = datatoreturn['request']
-                responsecode = datatoreturn['response']
-                cherrypy.response.status = responsecode
-                headers = datatoreturn['headers']
-                if not (headers==""):
-                    for data in headers:
-                        cherrypy.response.headers[data] = headers[data]
-                #print(str(responsecode))
-                logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                logging(logline)
-                if cherrypy.response.headers['Content-Type']=="":
-                    cherrypy.response.headers['Content-Type']="charset=utf-8"
-                else:
-                    cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
-                return(datatoreturn["datareturned"])
-            elif bad == True:
-                
-                logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                logging(logline)
-                #cherrypy.response.timed_out = True
+                    #print(databack.status)
+                    return cherrypy.lib.static.serve_file(current_dir+bs+bs.join(list))
+            cherrypy.response.headers['X-Best-Pony'] = "Derpy Hooves"
+            cherrypy.response.headers['X-Comment'] = "Someone is reading my headers... >_>"
+            cherrypy.response.headers["Server"] = "RedServ 1.0"
+            #datareturned = ""
+            if not os.path.exists(virtloc):
                 return("")
-        ###End Linux
-                
-        ###Windows
-        if os.name == 'nt':
-            if os.path.exists(os.path.abspath('pages')+"\\sieve-in.py"):
-                datsieve = ""
-                sievedata = {"cherrypy": cherrypy, "page":virt_host+"\\"+"\\".join(list), "data": datsieve, "bad":bad}
-                sievedata = sieve_in(sievedata)
-                bad = sievedata['bad']
-                global cherrypy
-                cherrypy = sievedata['cherrypy']
-            if bad == False:
-                headers = {}
-                responsecode = 200
-                try:
-                    virtloc = os.path.abspath('pages')+"\\"+vhosts(virt_host)+"\\"
-                except Exception,e:
-                    cherrypy.response.status = 404
-                    logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"\\"+"\\".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
+            filename = (virtloc+bs.join(list)).replace("..","").replace("//","/")
+            #print(filename)
+            try:
+                bang = os.listdir(filename)
+            except Exception,e:
+                #print(e)
+                bang = ""
+                if str(e).startswith("[Errno 2] No such file or directory:"):
+                    filename = filepicker(filename,fileext)
+                    if not os.path.exists(filename):
+                        return(notfound2(cherrypy,e,virtloc,params))
+                if str(e).startswith("[Errno 20] Not a directory:"):
+                    #print("got")
+                    filename = filepicker(filename,fileext)
+            if not bang=="":
+                filename = filepicker(filename,folderext)
+            for data in fileext:
+                if filename.endswith(data) and os.path.exists(filename) and (not filename.endswith(".py")):
+                    typedat = mimetypes.guess_type(filename)
+                    #print(typedat)
+                    (cherrypy.response.headers['Content-Type'],nothing) = typedat
+            cherrypy.response.headers['Cache-Control'] = 'no-cache'
+            datatoreturn = {"params":params,"datareturned":"'","cj":cj,"headers":headers,"response":responsecode,"request":cherrypy.request}
+            try:
+                if filename.endswith(".py"):
+                    execfile(filename,globals(),datatoreturn)
+                else:
+                    f = open(filename, 'r').read()
+                    cherrypy.response.status = 200
+                    logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
                     logging(logline)
-                    return("404<br>"+str("/"+"/".join(list)))
-                if len(list)>=1:
-                    if str(list[0]).lower()=="static":
-                        if not os.path.exists(current_dir+"\\"+"\\".join(list)):
-                            cherrypy.response.status = 404
-                            logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"\\"+"\\".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                            logging(logline)
-                            return("404<br>"+str("\\"+"\\".join(list)))
-                        if cherrypy.response.status==None:
-                            cherrypy.response.status = 200
-                        logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"\\"+"\\".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                        logging(logline)
-                        #print(databack.status)
-                        return cherrypy.lib.static.serve_file(current_dir+"\\"+"\\".join(list))
-                cherrypy.response.headers['X-Best-Pony'] = "Derpy Hooves"
-                cherrypy.response.headers['X-Comment'] = "Someone is reading my headers... >_>"
-                #datareturned = ""
-                if not os.path.exists(virtloc):
-                    return("")
-                filename = (virtloc+"\\".join(list)).replace("..","").replace("\\\\","\\")
-                #print(filename)
-                try:
-                    bang = os.listdir(filename)
-                except Exception,e:
-                    #print(e)
-                    bang = ""
-                    if str(e).startswith("[Errno 2] No such file or directory:"):
-                        filename = filepicker(filename,fileext)
-                        if not os.path.exists(filename):
-                            cherrypy.response.status = 404
-                            return("404<br>"+str(e).replace(virtloc,"\\"))
-                    if str(e).startswith("[Errno 20] Not a directory:"):
-                        #print("got")
-                        filename = filepicker(filename,fileext)
-                if not bang=="":
-                    filename = filepicker(filename,folderext)
-                for data in fileext:
-                    if filename.endswith(data) and os.path.exists(filename) and (not filename.endswith(".py")):
-                        typedat = mimetypes.guess_type(filename)
-                        #print(typedat)
-                        (cherrypy.response.headers['Content-Type'],nothing) = typedat
-                cherrypy.response.headers['Cache-Control'] = 'no-cache'
-                datatoreturn = {"params":params,"datareturned":"'","cj":cj,"headers":headers,"response":responsecode,"request":cherrypy.request}
-                try:
-                    if filename.endswith(".py"):
-                        execfile(filename,globals(),datatoreturn)
-                    else:
-                        f = open(filename, 'r').read()
-                        cherrypy.response.status = 200
-                        logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"\\"+"\\".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                        logging(logline)
-                        return(f)
-                except Exception,e:
-                    #print(e)
-                    type_, value_, traceback_ = sys.exc_info()
-                    ex = traceback.format_exception(type_, value_, traceback_)
-                    trace = ""
-                    for data in ex:
-                        trace = str(trace+data).replace("\n","<br>")
-                    cherrypy.response.status = 404
-                    datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"\\")
-                    datatoreturn = sieve_out(datatoreturn)
-                    return(datatoreturn["datareturned"])
+                    return(f+debughandler(params))
+            except Exception,e:
+                #print(e)
+                type_, value_, traceback_ = sys.exc_info()
+                ex = traceback.format_exception(type_, value_, traceback_)
+                trace = ""
+                for data in ex:
+                    trace = str(trace+data).replace("\n","<br>")
+                cherrypy.response.status = 404
+                datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
                 datatoreturn = sieve_out(datatoreturn)
-                global cj
-                cj = datatoreturn['cj']
-                #cherrypy.request = datatoreturn['request']
-                responsecode = datatoreturn['response']
-                cherrypy.response.status = responsecode
-                headers = datatoreturn['headers']
-                if not (headers==""):
-                    for data in headers:
-                        cherrypy.response.headers[data] = headers[data]
-                #print(str(responsecode))
-                logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"\\"+"\\".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                logging(logline)
-                if cherrypy.response.headers['Content-Type']=="":
-                    cherrypy.response.headers['Content-Type']="charset=utf-8"
-                else:
-                    cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
                 return(datatoreturn["datareturned"])
-            elif bad == True:
-                
-                logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"\\"+"\\".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                logging(logline)
-                #cherrypy.response.timed_out = True
-                return("")
-        ###End Windows
-        
+            datatoreturn = sieve(datatoreturn,"out")
+            global cj
+            cj = datatoreturn['cj']
+            #cherrypy.request = datatoreturn['request']
+            responsecode = datatoreturn['response']
+            cherrypy.response.status = responsecode
+            headers = datatoreturn['headers']
+            if not (headers==""):
+                for data in headers:
+                    cherrypy.response.headers[data] = headers[data]
+            #print(str(responsecode))
+            logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
+            logging(logline)
+            if cherrypy.response.headers['Content-Type']=="":
+                cherrypy.response.headers['Content-Type']="charset=utf-8"
+            else:
+                cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
+            return(datatoreturn["datareturned"])
+        elif bad == True:
+             
+            logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
+            logging(logline)
+            #cherrypy.response.timed_out = True
+            return("")
+      
     default.exposed = True
         
 
