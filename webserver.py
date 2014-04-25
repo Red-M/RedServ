@@ -25,11 +25,7 @@ global current_dir
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 global bs
-bs = ""
-if os.name == "posix":
-    bs = "/"
-if os.name == "nt":
-    bs = "\\"
+bs = os.sep
 
 def template_reload(current_dir):
     lookup = TemplateLookup(directories=[current_dir+bs+'templates'])
@@ -201,11 +197,9 @@ class WebInterface:
         if paramlines=="?":
             paramlines = ""
             
-        #vhosts(virt_host)
-            
         lookup = template_reload(current_dir)
             
-        ###Start
+    ###Start
         if os.path.exists(os.path.abspath('pages')+bs+"sieve-in.py"):
             datsieve = ""
             sievedata = {"cherrypy": cherrypy, "page":virt_host+bs+bs.join(list), "data": datsieve, "bad":bad}
@@ -282,7 +276,6 @@ class WebInterface:
                 datatoreturn = sieve_out(datatoreturn)
                 return(datatoreturn["datareturned"])
             datatoreturn = sieve(datatoreturn,"out")
-            
             cj = datatoreturn['cj']
             #cherrypy.request = datatoreturn['request']
             responsecode = datatoreturn['response']
@@ -305,6 +298,7 @@ class WebInterface:
             logging(logline)
             #cherrypy.response.timed_out = True
             return("")
+    ###end
       
     default.exposed = True
         
