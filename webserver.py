@@ -140,15 +140,17 @@ def notfound2(cherrypy,e,virtloc,params):
 def debughandler(params):
     if "debug" in params:
         if params["debug"]=="1":
-            (sysname, nodename, release, version, machine) = os.uname()
-            lowdebuginfo = serve_template("debug.mako",sysname="", nodename=nodename, release="", version="", machine="")
-            debuginfo = serve_template("debug.mako",sysname=sysname, nodename=nodename, release=release, version=version, machine=machine)
             if "v" in params:
                 if not params["v"] == "1":
-                    debuginfo = lowdebuginfo
+                    debuginfo = "<br>\n<l>"+sysinfo()+"</l>"
+                else:
+                    debugtable = []
+                    for data in os.uname():
+                        debugtable.append(data)
+                    debuginfo = "<br>\n<l>"+" ".join(debugtable)+"</l>"
             else:
-                debuginfo = lowdebuginfo
-        return(debuginfo)
+                debuginfo = "<br>\n<l>"+sysinfo()+"</l>"
+            return(debuginfo)
     return("")
     
 def logging(logline):
@@ -203,7 +205,6 @@ class WebInterface:
             responsecode = 200
             try:
                 virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
-                print("1")
             except Exception,e:
                 cherrypy.response.status = 404
                 logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
