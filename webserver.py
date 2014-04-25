@@ -102,8 +102,10 @@ def sysinfo():
     return(nodename)
     
 def sieve(sievedata,sievetype):
-    if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve-"+sievetype+".py")):
-        execfile(os.path.join(os.path.abspath('pages'),"sieve-"+sievetype+".py"),globals(),sievedata)
+    sievename = "sieve-"+sievetype+".py"
+    sievepath = os.path.join(os.path.abspath('pages'),sievename)
+    if os.path.exists(sievepath):
+        execfile(sievepath,globals(),sievedata)
     return(sievedata)
 
 def vhosts(virt_host):
@@ -112,7 +114,8 @@ def vhosts(virt_host):
         pos = virt_host.find(":")
         virt_host = virt_host[:pos]
     pos = virt_host.find(".")
-    if os.path.exists(os.path.join(os.path.abspath('pages'),virt_host[pos:])):
+    vpath = os.path.join(os.path.abspath('pages'),virt_host[pos:])
+    if os.path.exists(vpath):
         data = virt_host[pos:]
         hostlen = len(data)
         return(os.path.join(data,virt_host[:-hostlen]))
@@ -120,15 +123,13 @@ def vhosts(virt_host):
         for data in hosts:
             if virt_host.endswith(data):
                 hostlen = len(data)
-                logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+"	"+virt_host[:-hostlen]+"\n"))
-                logging(logline)
+                logging("", 2, [data,virt_host,hostlen])
                 return(os.path.join(data,virt_host[:-hostlen]))
 
     
 def notfound(cherrypy,virt_host,paramlines,list,params):
     cherrypy.response.status = 404
-    logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-    logging(logline)
+    logging("",1)
     (sysname, nodename, release, version, machine) = os.uname()
     return("404<br>"+str("/"+"/".join(list))+debughandler(params))
     
@@ -153,7 +154,28 @@ def debughandler(params):
             return(debuginfo)
     return("")
     
-def logging(logline):
+def logging(logline,logtype,*extra):
+    if logline == "":
+        if logtype == 1: #general log line for normal requests
+            (extra,) = extra
+            cherrypy = extra[0]
+            virt_host = extra[1]
+            list = extra[2]
+            paramlines = extra[3]
+            
+            logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
+            str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
+            ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
+            str(cherrypy.request.headers)+"\n"
+        if logtype == 2: #bad vhost log line
+            (extra,) = extra
+            data = extra[0]
+            virt_host = extra[1]
+            hostlen = extra[2]
+            
+            logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+ \
+            "	"+virt_host[:-hostlen]+"\n"))
+            
     nodename = sysinfo()
     logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"),time.strftime("%m"))
     logfile = os.path.join(logfolder,time.strftime("%d")+".txt")
@@ -207,8 +229,7 @@ class WebInterface:
                 virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
             except Exception,e:
                 cherrypy.response.status = 404
-                logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                logging(logline)
+                logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return("")
             if len(list)>=1:
                 if str(list[0]).lower()=="static":
@@ -216,8 +237,7 @@ class WebInterface:
                         return(notfound(cherrypy,virt_host,paramlines,list,params))
                     if cherrypy.response.status==None:
                         cherrypy.response.status = 200
-                    logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                    logging(logline)
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return cherrypy.lib.static.serve_file(current_dir+os.sep+os.sep.join(list))
             cherrypy.response.headers['X-Best-Pony'] = "Derpy Hooves"
             cherrypy.response.headers['X-Comment'] = "Someone is reading my headers... >_>"
@@ -249,8 +269,7 @@ class WebInterface:
                 else:
                     f = open(filename, 'r').read()
                     cherrypy.response.status = 200
-                    logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-                    logging(logline)
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(f+debughandler(params))
             except Exception,e:
                 type_, value_, traceback_ = sys.exc_info()
@@ -270,17 +289,14 @@ class WebInterface:
             if not (headers==""):
                 for data in headers:
                     cherrypy.response.headers[data] = headers[data]
-            logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-            logging(logline)
+            logging("", 1, [cherrypy,virt_host,list,paramlines])
             if cherrypy.response.headers['Content-Type']=="":
                 cherrypy.response.headers['Content-Type']="charset=utf-8"
             else:
                 cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
             return(datatoreturn["datareturned"])
         elif bad == True:
-             
-            logline = str(time.strftime("[%I:%M:%S %p]	"))+str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+str(cherrypy.request.headers)+"\n"
-            logging(logline)
+            logging("", 1, [cherrypy,virt_host,list,paramlines])
             return("")
     ###end
       
