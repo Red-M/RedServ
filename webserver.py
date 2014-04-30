@@ -129,7 +129,7 @@ def vhosts(virt_host):
     
 def notfound(cherrypy,virt_host,paramlines,list,params):
     cherrypy.response.status = 404
-    logging("",1)
+    logging("",1,[cherrypy,virt_host,list,paramlines])
     (sysname, nodename, release, version, machine) = os.uname()
     return("404<br>"+str("/"+"/".join(list))+debughandler(params))
     
@@ -156,37 +156,39 @@ def debughandler(params):
     
 def logging(logline,logtype,*extra):
     if logline == "":
+        if len(extra)==0:
+            return
+        (extra,) = extra
         if logtype == 1: #general log line for normal requests
-            (extra,) = extra
             cherrypy = extra[0]
             virt_host = extra[1]
             list = extra[2]
             paramlines = extra[3]
-            
             logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
             str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
             ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
             str(cherrypy.request.headers)+"\n"
+            
         if logtype == 2: #bad vhost log line
-            (extra,) = extra
             data = extra[0]
             virt_host = extra[1]
             hostlen = extra[2]
-            
             logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+ \
             "	"+virt_host[:-hostlen]+"\n"))
             
     nodename = sysinfo()
-    logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"),time.strftime("%m"))
+    todaylog = os.path.join(current_dir,"logs","today."+nodename+".log")
+    logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"), \
+    time.strftime("%m"))
     logfile = os.path.join(logfolder,time.strftime("%d")+".txt")
     if not os.path.exists(logfolder):
         os.makedirs(logfolder)
     if os.path.exists(logfile):
         open(logfile,"a").write(logline)
-        open(os.path.join(current_dir,"logs","today."+nodename+".log"),"a").write(logline)
+        open(todaylog,"a").write(logline)
     if not os.path.exists(logfile):
         open(logfile,"a").write(logline)
-        open(os.path.join(current_dir,"logs","today."+nodename+".log"),"w").write(logline)
+        open(todaylog,"w").write(logline)
         
 class WebInterface:
     """ main web interface class """
@@ -213,13 +215,13 @@ class WebInterface:
         if paramlines=="?":
             paramlines = ""
             
-        lookup = template_reload(current_dir)
+        lookup = template_reload(current_dir) #template refresh
             
     ###Start
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve-in.py")):
             datsieve = ""
             sievedata = {"cherrypy": cherrypy, "page":virt_host+"/"+"/".join(list), "data": datsieve, "bad":bad}
-            sievedata = sieve(sievedata,"in")
+            sievedata = sieve(sievedata,"in") #pre-page render sieve
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
         if bad == False:
@@ -279,9 +281,9 @@ class WebInterface:
                     trace = str(trace+data).replace("\n","<br>")
                 cherrypy.response.status = 404
                 datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
-                datatoreturn = sieve_out(datatoreturn)
+                datatoreturn = sieve(datatoreturn, "out")
                 return(datatoreturn["datareturned"])
-            datatoreturn = sieve(datatoreturn,"out")
+            datatoreturn = sieve(datatoreturn, "out")
             cj = datatoreturn['cj']
             responsecode = datatoreturn['response']
             cherrypy.response.status = responsecode
