@@ -234,13 +234,17 @@ class WebInterface:
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return("")
             if len(list)>=1:
-                if str(list[0]).lower()=="static":
+                if str(list[0]).lower()=="static" and len(list)>=2:
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
                         return(notfound(cherrypy,virt_host,paramlines,list,params))
                     if cherrypy.response.status==None:
                         cherrypy.response.status = 200
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return cherrypy.lib.static.serve_file(current_dir+os.sep+os.sep.join(list))
+                else:
+                    cherrypy.response.status = 404
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    return("404")
             cherrypy.response.headers['X-Best-Pony'] = "Derpy Hooves"
             cherrypy.response.headers['X-Comment'] = "Someone is reading my headers... >_>"
             cherrypy.response.headers["Server"] = "RedServ 1.0"
@@ -254,6 +258,7 @@ class WebInterface:
                 if str(e).startswith("[Errno 2] No such file or directory:"):
                     filename = filepicker(filename,fileext)
                     if not os.path.exists(filename):
+                        logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
                 if str(e).startswith("[Errno 20] Not a directory:"):
                     filename = filepicker(filename,fileext)
@@ -282,6 +287,7 @@ class WebInterface:
                 cherrypy.response.status = 404
                 datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
                 datatoreturn = sieve(datatoreturn, "out")
+                logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return(datatoreturn["datareturned"])
             datatoreturn = sieve(datatoreturn, "out")
             cj = datatoreturn['cj']
