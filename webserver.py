@@ -19,10 +19,35 @@ import urllib2
 import urllib
 import re
 import traceback
+import inspect
 from cookielib import CookieJar
 
 global current_dir
 current_dir = os.path.dirname(os.path.abspath(__file__))
+site_glo_data = {}
+
+def config_init(configlocation):
+    if not os.path.exists(configlocation):
+        open(configlocation, 'w').write(inspect.cleandoc(
+        r'''{
+         "default_404": true,
+         "HTTP":{
+         "enabled":true,
+         "port": 8080
+         },
+         "HTTPS":{
+            "enabled":false,
+            "port": 8081
+         },
+         "log": "true"
+        }''') + '\n')
+
+def config(configlocation):
+    try:
+        con = json.load(open(configlocation))
+        return(con)
+    except ValueError, e:
+        print 'ERROR: malformed config!', e
 
 def template_reload(current_dir):
     lookup = TemplateLookup(directories=[os.path.join(current_dir,'templates')])
@@ -101,9 +126,8 @@ def sysinfo():
         (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
     return(nodename)
     
-def sieve(sievedata,sievetype):
-    sievename = "sieve-"+sievetype+".py"
-    sievepath = os.path.join(os.path.abspath('pages'),sievename)
+def sieve(sievedata):
+    sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
     if os.path.exists(sievepath):
         execfile(sievepath,globals(),sievedata)
     return(sievedata)
@@ -113,18 +137,21 @@ def vhosts(virt_host):
     if ":" in virt_host:
         pos = virt_host.find(":")
         virt_host = virt_host[:pos]
-    pos = virt_host.find(".")
-    vpath = os.path.join(os.path.abspath('pages'),virt_host[pos:])
-    if os.path.exists(vpath):
-        data = virt_host[pos:]
-        hostlen = len(data)
-        return(os.path.join(data,virt_host[:-hostlen]))
+    if "." in virt_host:
+        pos = virt_host.find(".")+1
+        vpath = os.path.join(os.path.abspath('pages'),virt_host[pos:])
+        if os.path.exists(vpath):
+            data = virt_host[pos:]
+            hostlen = len(data)
+            return(os.path.join(data,virt_host[:-hostlen-1]))
+        else:
+            for data in hosts:
+                if virt_host.endswith(data):
+                    hostlen = len(data)
+                    logging("", 2, [data,virt_host,hostlen])
+                    return(os.path.join(data,virt_host[:-hostlen]))
     else:
-        for data in hosts:
-            if virt_host.endswith(data):
-                hostlen = len(data)
-                logging("", 2, [data,virt_host,hostlen])
-                return(os.path.join(data,virt_host[:-hostlen]))
+        return(os.path.join(os.path.abspath('pages'),virt_host))
 
     
 def notfound(cherrypy,virt_host,paramlines,list,params):
@@ -155,40 +182,41 @@ def debughandler(params):
     return("")
     
 def logging(logline,logtype,*extra):
-    if logline == "":
-        if len(extra)==0:
-            return
-        (extra,) = extra
-        if logtype == 1: #general log line for normal requests
-            cherrypy = extra[0]
-            virt_host = extra[1]
-            list = extra[2]
-            paramlines = extra[3]
-            logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
-            str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
-            ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
-            str(cherrypy.request.headers)+"\n"
-            
-        if logtype == 2: #bad vhost log line
-            data = extra[0]
-            virt_host = extra[1]
-            hostlen = extra[2]
-            logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+ \
-            "	"+virt_host[:-hostlen]+"\n"))
-            
-    nodename = sysinfo()
-    todaylog = os.path.join(current_dir,"logs","today."+nodename+".log")
-    logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"), \
-    time.strftime("%m"))
-    logfile = os.path.join(logfolder,time.strftime("%d")+".txt")
-    if not os.path.exists(logfolder):
-        os.makedirs(logfolder)
-    if os.path.exists(logfile):
-        open(logfile,"a").write(logline)
-        open(todaylog,"a").write(logline)
-    if not os.path.exists(logfile):
-        open(logfile,"a").write(logline)
-        open(todaylog,"w").write(logline)
+    if conf["log"]==True:
+        if logline == "":
+            if len(extra)==0:
+                return
+            (extra,) = extra
+            if logtype == 1: #general log line for normal requests
+                cherrypy = extra[0]
+                virt_host = extra[1]
+                list = extra[2]
+                paramlines = extra[3]
+                logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
+                str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
+                ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
+                str(cherrypy.request.headers)+"\n"
+                
+            if logtype == 2: #bad vhost log line
+                data = extra[0]
+                virt_host = extra[1]
+                hostlen = extra[2]
+                logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+ \
+                "	"+virt_host[:-hostlen]+"\n"))
+                
+        nodename = sysinfo()
+        todaylog = os.path.join(current_dir,"logs","today."+nodename+".log")
+        logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"), \
+        time.strftime("%m"))
+        logfile = os.path.join(logfolder,time.strftime("%d")+".txt")
+        if not os.path.exists(logfolder):
+            os.makedirs(logfolder)
+        if os.path.exists(logfile):
+            open(logfile,"a").write(logline)
+            open(todaylog,"a").write(logline)
+        if not os.path.exists(logfile):
+            open(logfile,"a").write(logline)
+            open(todaylog,"w").write(logline)
         
 class WebInterface:
     """ main web interface class """
@@ -197,6 +225,7 @@ class WebInterface:
         global cj
         global lookup
         global cherrypy
+        global site_glo_data
         
         bad = False
         if "host" in cherrypy.request.headers:
@@ -214,14 +243,16 @@ class WebInterface:
             paramlines = paramlines[:-1]
         if paramlines=="?":
             paramlines = ""
+        if not virt_host in site_glo_data:
+            site_glo_data[virt_host] = {}
             
         lookup = template_reload(current_dir) #template refresh
             
     ###Start
-        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve-in.py")):
+        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
             datsieve = ""
-            sievedata = {"cherrypy": cherrypy, "page":virt_host+"/"+"/".join(list), "data": datsieve, "bad":bad}
-            sievedata = sieve(sievedata,"in") #pre-page render sieve
+            sievedata = {"sievetype":"in", "cherrypy": cherrypy, "page":virt_host+"/"+"/".join(list), "data": datsieve, "bad":bad}
+            sievedata = sieve(sievedata) #pre-page render sieve
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
         if bad == False:
@@ -233,7 +264,7 @@ class WebInterface:
                 cherrypy.response.status = 404
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return("")
-            if len(list)>=1:
+            if len(list)>=1 and str(list[0]).lower()=="static":
                 if str(list[0]).lower()=="static" and len(list)>=2:
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
                         return(notfound(cherrypy,virt_host,paramlines,list,params))
@@ -269,7 +300,21 @@ class WebInterface:
                     typedat = mimetypes.guess_type(filename)
                     (cherrypy.response.headers['Content-Type'],nothing) = typedat
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
-            datatoreturn = {"params":params,"datareturned":"'","cj":cj,"headers":headers,"response":responsecode,"request":cherrypy.request}
+            datatoreturn = {
+            "sievetype":"out", 
+            "params":params,
+            "datareturned":"'",
+            "cj":cj,
+            "headers":headers,
+            "response":responsecode,
+            "request":cherrypy.request,
+            "filelocation":virtloc+os.sep.join(list),
+            "filename":filename.replace(virtloc+os.sep.join(list),""),
+            "global_site_data":site_glo_data,
+            "site_data":site_glo_data[virt_host],
+            "http_port":STDPORT,
+            "https_port":SSLPORT
+            }
             try:
                 if filename.endswith(".py"):
                     execfile(filename,globals(),datatoreturn)
@@ -286,11 +331,13 @@ class WebInterface:
                     trace = str(trace+data).replace("\n","<br>")
                 cherrypy.response.status = 404
                 datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
-                datatoreturn = sieve(datatoreturn, "out")
+                datatoreturn = sieve(datatoreturn)
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return(datatoreturn["datareturned"])
-            datatoreturn = sieve(datatoreturn, "out")
+            datatoreturn = sieve(datatoreturn)
             cj = datatoreturn['cj']
+            site_glo_data = datatoreturn['global_site_data']
+            site_glo_data[virt_host] = datatoreturn['site_data']
             responsecode = datatoreturn['response']
             cherrypy.response.status = responsecode
             headers = datatoreturn['headers']
@@ -313,6 +360,12 @@ class WebInterface:
 
 def web_init():
     print "Initalising web server..."
+    config_init(os.path.join(current_dir,"config"))
+    global conf
+    conf = config(os.path.join(current_dir,"config"))
+    if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
+        print("ERROR::You need to enable one transfer protocol, either HTTP or HTTPS in the config")
+        exit()
     global input
     input = {}
     if os.name=="posix":
@@ -343,23 +396,33 @@ def web_init():
 
     cherrypy.server.unsubscribe()
 
-    server1 = cherrypy._cpserver.Server()
-    server1.socket_port=8082
-    server1._socket_host='0.0.0.0'
-    server1.thread_pool=30
-    server1.ssl_module = 'builtin'
-    server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
-    server1.ssl_private_key = os.path.join(current_dir,'privkey.pem')
-    server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
-    server1.subscribe()
-
-    server2 = cherrypy._cpserver.Server()
-    server2.socket_port=8081
-    server2._socket_host="0.0.0.0"
-    server2.thread_pool=30
-    server2.subscribe()
+    if conf["HTTPS"]["enabled"]==True:
+        server1 = cherrypy._cpserver.Server()
+        global SSLPORT
+        SSLPORT = conf["HTTPS"]["port"]
+        server1.socket_port=SSLPORT
+        server1._socket_host='0.0.0.0'
+        server1.thread_pool=30
+        server1.ssl_module = 'builtin'
+        server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
+        server1.ssl_private_key = os.path.join(current_dir,'privkey.pem')
+        server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
+        server1.subscribe()
+    if conf["HTTP"]["enabled"]==True:
+        server2 = cherrypy._cpserver.Server()
+        global STDPORT
+        STDPORT = conf["HTTP"]["port"]
+        server2.socket_port=STDPORT
+        server2._socket_host="0.0.0.0"
+        server2.thread_pool=30
+        server2.subscribe()
     
-    print("Web server started\nHTTP on port: "+str(server2.socket_port)+"\nHTTPS on port: "+str(server1.socket_port))
+    strprnt = "Web server started\n"
+    if conf["HTTP"]["enabled"]==True:
+        strprnt = strprnt+"HTTP on port: "+str(server2.socket_port)+"\n"
+    if conf["HTTPS"]["enabled"]==True:
+        strprnt = strprnt+"HTTPS on port: "+str(server1.socket_port)
+    print(strprnt)
     cherrypy.engine.start()
     cherrypy.engine.block()
 
