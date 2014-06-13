@@ -39,7 +39,7 @@ def config_init(configlocation):
             "enabled":false,
             "port": 8081
          },
-         "log": "true"
+         "log": true
         }''') + '\n')
 
 def config(configlocation):
