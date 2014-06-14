@@ -40,7 +40,7 @@ def config_init(configlocation):
          },
          "default_404": true,
          "vhosts-enabled": true,
-         "vhost-lookup": "domain",
+         "vhost-lookup": "domains",
          "log": true
         }''') + '\n')
 
