@@ -30,7 +30,6 @@ def config_init(configlocation):
     if not os.path.exists(configlocation):
         open(configlocation, 'w').write(inspect.cleandoc(
         r'''{
-         "default_404": true,
          "HTTP":{
          "enabled": true,
          "port": 8080
@@ -39,7 +38,9 @@ def config_init(configlocation):
             "enabled": false,
             "port": 8081
          },
+         "default_404": true,
          "vhosts-enabled": true,
+         "vhost-lookup": "domain",
          "log": true
         }''') + '\n')
 
@@ -134,25 +135,36 @@ def sieve(sievedata):
     return(sievedata)
 
 def vhosts(virt_host):
+    global conf
     hosts = os.listdir(os.path.abspath('pages'))
     if ":" in virt_host:
         pos = virt_host.find(":")
         virt_host = virt_host[:pos]
-    if "." in virt_host:
-        pos = virt_host.find(".")+1
-        vpath = os.path.join(os.path.abspath('pages'),virt_host[pos:])
-        if os.path.exists(vpath):
-            data = virt_host[pos:]
-            hostlen = len(data)
-            return(os.path.join(data,virt_host[:-hostlen-1]))
+    if conf["vhost-lookup"]=="domains":
+        if "." in virt_host:
+            pos = virt_host.find(".")+1
+            vpath = os.path.join(os.path.abspath('pages'),virt_host[pos:])
+            if os.path.exists(vpath):
+                data = virt_host[pos:]
+                hostlen = len(data)
+                return(os.path.join(data,virt_host[:-hostlen-1]))
+            else:
+                for data in hosts:
+                    if virt_host.endswith(data):
+                        hostlen = len(data)
+                        logging("", 2, [data,virt_host,hostlen])
+                        return(os.path.join(data,virt_host[:-hostlen]))
         else:
-            for data in hosts:
-                if virt_host.endswith(data):
-                    hostlen = len(data)
-                    logging("", 2, [data,virt_host,hostlen])
-                    return(os.path.join(data,virt_host[:-hostlen]))
+            return(os.path.join(os.path.abspath('pages'),virt_host))
+    if conf["vhost-lookup"]=="single-host":
+        return(os.path.join(data,virt_host))
+    if conf["vhost-lookup"]=="IPs":
+        split = virt_host.split(".")
+        host = split[0]+"."+split[1]+"."+split[2]
+        return(os.path.join(os.path.abspath('pages'),host,split[3]))
     else:
-        return(os.path.join(os.path.abspath('pages'),virt_host))
+        print("FATAL: VHOST LOOKUP IS INCORRECTLY SET TO AN INVALID VALUE! PLEASE EDIT THE CONFIG TO FIX THIS!")
+        exit()
 
     
 def notfound(cherrypy,virt_host,paramlines,list,params):
@@ -218,6 +230,34 @@ def logging(logline,logtype,*extra):
         if not os.path.exists(logfile):
             open(logfile,"a").write(logline)
             open(todaylog,"w").write(logline)
+            
+def conf_reload(conf):
+    global STDPORT
+    global SSLPORT
+    old_conf = conf
+    new_conf = config(os.path.join(current_dir,"config"))
+    if not old_conf==new_conf:
+        new_conf["HTTP"]["enabled"] = old_conf["HTTP"]["enabled"]
+        new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
+        new_conf["HTTP"]["port"] = STDPORT
+        new_conf["HTTPS"]["port"] = SSLPORT
+        if not new_conf["vhosts-enabled"]==old_conf["vhosts-enabled"]:
+            if new_conf["vhosts-enabled"]==True:
+                vhoston = "Enabled"
+            else:
+                vhoston = "Disabled"
+            print("vhosts are now "+str(vhoston))
+        if not new_conf["log"]==old_conf["log"]:
+            if new_conf["log"]==True:
+                log = "Enabled"
+            else:
+                log = "Disabled"
+            print("Logging is now "+str(log))
+        if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
+            print("Virtual Host look up is now done by "+new_conf["vhost-lookup"])
+        return(new_conf)
+    else:
+        return(old_conf)
         
 class WebInterface:
     """ main web interface class """
@@ -227,6 +267,10 @@ class WebInterface:
         global lookup
         global cherrypy
         global site_glo_data
+        global conf
+        global STDPORT
+        global SSLPORT
+        conf = conf_reload(conf)
         
         bad = False
         if "host" in cherrypy.request.headers:
@@ -283,22 +327,28 @@ class WebInterface:
             cherrypy.response.headers['X-Best-Pony'] = "Derpy Hooves"
             cherrypy.response.headers['X-Comment'] = "Someone is reading my headers... >_>"
             cherrypy.response.headers["Server"] = "RedServ 1.0"
-            if not os.path.exists(virtloc):
+            if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
             filename = (virtloc+os.sep.join(list)).replace("..","").replace("//","/")
             try:
                 bang = os.listdir(filename)
             except Exception,e:
                 bang = ""
-                if str(e).startswith("[Errno 2] No such file or directory:"):
+                if str(e).startswith("[Errno 2]"):
                     filename = filepicker(filename,fileext)
-                    if not os.path.exists(filename):
+                    if not os.path.exists(filename) or filename==None:
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
-                if str(e).startswith("[Errno 20] Not a directory:"):
+                if str(e).startswith("[Errno 20]"):
                     filename = filepicker(filename,fileext)
             if not bang=="":
-                filename = filepicker(filename,folderext)
+                try:
+                    filename = filepicker(filename,folderext)
+                    open(filename, 'r').read()
+                except Exception,e:
+                    if str(e).startswith("[Errno 21]"):
+                        logging("", 1, [cherrypy,virt_host,list,paramlines])
+                        return(notfound2(cherrypy,e,virtloc,params))
             for data in fileext:
                 if filename.endswith(data) and os.path.exists(filename) and (not filename.endswith(".py")):
                     typedat = mimetypes.guess_type(filename)
@@ -400,10 +450,10 @@ def web_init():
 
     cherrypy.server.unsubscribe()
 
+    global SSLPORT
+    SSLPORT = conf["HTTPS"]["port"]
     if conf["HTTPS"]["enabled"]==True:
         server1 = cherrypy._cpserver.Server()
-        global SSLPORT
-        SSLPORT = conf["HTTPS"]["port"]
         server1.socket_port=SSLPORT
         server1._socket_host='0.0.0.0'
         server1.thread_pool=30
@@ -423,9 +473,9 @@ def web_init():
     
     strprnt = "Web server started\n"
     if conf["HTTP"]["enabled"]==True:
-        strprnt = strprnt+"HTTP on port: "+str(server2.socket_port)+"\n"
+        strprnt = strprnt+"HTTP on port: "+str(server2.socket_port)
     if conf["HTTPS"]["enabled"]==True:
-        strprnt = strprnt+"HTTPS on port: "+str(server1.socket_port)
+        strprnt = strprnt+"\nHTTPS on port: "+str(server1.socket_port)
     print(strprnt)
     cherrypy.engine.start()
     cherrypy.engine.block()
