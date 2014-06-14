@@ -32,13 +32,14 @@ def config_init(configlocation):
         r'''{
          "default_404": true,
          "HTTP":{
-         "enabled":true,
+         "enabled": true,
          "port": 8080
          },
          "HTTPS":{
-            "enabled":false,
+            "enabled": false,
             "port": 8081
          },
+         "vhosts-enabled": true,
          "log": true
         }''') + '\n')
 
@@ -259,7 +260,10 @@ class WebInterface:
             headers = {}
             responsecode = 200
             try:
-                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
+                if conf["vhosts-enabled"]==True:
+                    virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
+                else:
+                    virtloc = os.path.abspath('pages')+os.sep
             except Exception,e:
                 cherrypy.response.status = 404
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
