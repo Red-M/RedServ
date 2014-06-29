@@ -135,6 +135,11 @@ def sieve(sievedata):
     return(sievedata)
 
 def vhosts(virt_host):
+    lookuptypes = [
+    "domains",
+    "single-host",
+    "IPs"
+    ]
     global conf
     hosts = os.listdir(os.path.abspath('pages'))
     if ":" in virt_host:
@@ -162,8 +167,9 @@ def vhosts(virt_host):
         split = virt_host.split(".")
         host = split[0]+"."+split[1]+"."+split[2]
         return(os.path.join(os.path.abspath('pages'),host,split[3]))
-    else:
+    elif not conf["vhost-lookup"] in lookuptypes:
         print("FATAL: VHOST LOOKUP IS INCORRECTLY SET TO AN INVALID VALUE! PLEASE EDIT THE CONFIG TO FIX THIS!")
+        print(conf["vhost-lookup"])
         exit()
 
     
@@ -296,7 +302,7 @@ class WebInterface:
     ###Start
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
             datsieve = ""
-            sievedata = {"sievetype":"in", "cherrypy": cherrypy, "page":virt_host+"/"+"/".join(list), "data": datsieve, "bad":bad}
+            sievedata = {"sievetype":"in", "cherrypy": cherrypy, "page":virt_host+"/"+"/".join(list), "data": datsieve, "bad":bad, "params":params}
             sievedata = sieve(sievedata) #pre-page render sieve
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
