@@ -298,7 +298,10 @@ class WebInterface:
             site_glo_data[virt_host] = {}
             db_folders = os.path.join("sites",vhosts(virt_host))
             site_glo_data[virt_host]["db_conn"] = get_db_connection(virt_host,db_folders)
-            
+        
+        if not str(type(site_glo_data[virt_host]["db_conn"]))=="<type 'sqlite3.Connection'>":
+            site_glo_data[virt_host]["db_conn"] = get_db_connection(virt_host,db_folders)
+        
         lookup = template_reload(current_dir) #template refresh
             
     ###Start
