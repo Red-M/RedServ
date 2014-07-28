@@ -296,13 +296,22 @@ class WebInterface:
             paramlines = ""
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
+            db_folders = os.path.join("sites",vhosts(virt_host))
+            site_glo_data[virt_host]["db_conn"] = get_db_connection(virt_host,db_folders)
             
         lookup = template_reload(current_dir) #template refresh
             
     ###Start
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
             datsieve = ""
-            sievedata = {"sievetype":"in", "cherrypy": cherrypy, "page":virt_host+"/"+"/".join(list), "data": datsieve, "bad":bad, "params":params}
+            sievedata = {
+            "sievetype":"in",
+            "cherrypy": cherrypy,
+            "page":virt_host+"/"+"/".join(list),
+            "data": datsieve,
+            "bad":bad,
+            "params":params
+            }
             sievedata = sieve(sievedata) #pre-page render sieve
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
@@ -409,10 +418,10 @@ class WebInterface:
                 cherrypy.response.headers['Content-Type']="charset=utf-8"
             else:
                 cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
-            return(datatoreturn["datareturned"])
+            return(str(datatoreturn["datareturned"]))
         elif bad == True:
             logging("", 1, [cherrypy,virt_host,list,paramlines])
-            return("")
+            return(str(sievedata["data"]))
     ###end
       
     default.exposed = True
@@ -499,8 +508,20 @@ for data in pathing:
     if not os.path.exists(os.path.abspath(data)):
         os.mkdir(os.path.abspath(data))
 
-def get_db_connection(name):
-    filename = os.path.join(db_loc,name)
+global get_db_connection
+def get_db_connection(name,folders=None):
+    db_loc = os.path.abspath(os.path.join(current_dir,'db'))
+    if folders==None:
+        filename = os.path.join(db_loc,name)
+    else:
+        folder_list = folders.split(os.sep)
+        for data in folder_list:
+            db_loc = os.path.join(db_loc,data)
+            if (not os.path.exists(db_loc)) and (not (len(folder_list)-1)==folder_list.index(data)):
+                os.mkdir(os.path.abspath(db_loc))
+        filename = db_loc
+    if not filename.endswith(".db"):
+        filename = filename+".db"
     return sqlite3.connect(filename, timeout=10)
 
 web_init()
