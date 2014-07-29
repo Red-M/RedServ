@@ -41,6 +41,7 @@ def config_init(configlocation):
          "default_404": true,
          "vhosts-enabled": true,
          "vhost-lookup": "domains",
+         "sessions": false,
          "log": true
         }''') + '\n')
 
@@ -252,7 +253,7 @@ def conf_reload(conf):
                 vhoston = "Enabled"
             else:
                 vhoston = "Disabled"
-            print("vhosts are now "+str(vhoston))
+            print("vhosts are now: "+str(vhoston))
         if not new_conf["log"]==old_conf["log"]:
             if new_conf["log"]==True:
                 log = "Enabled"
@@ -262,6 +263,12 @@ def conf_reload(conf):
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             print("Virtual Host look up is now done by "+new_conf["vhost-lookup"])
         return(new_conf)
+        if not new_conf["sessions"]==old_conf["sessions"]:
+            if new_conf["sessions"]==True:
+                vhoston = "Enabled"
+            else:
+                vhoston = "Disabled"
+            print("sessions are now: "+str(vhoston))
     else:
         return(old_conf)
         
@@ -453,7 +460,8 @@ def web_init():
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
         'tools.gzip.on':True,
         'tools.encode.on':True,
-        'tools.decode.on':True
+        'tools.decode.on':True,
+        'tools.sessions.on':conf["sessions"]
     }}
     application_conf = {
         "/favicon.ico": {
