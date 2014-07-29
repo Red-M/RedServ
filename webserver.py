@@ -263,12 +263,6 @@ def conf_reload(conf):
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             print("Virtual Host look up is now done by "+new_conf["vhost-lookup"])
         return(new_conf)
-        if not new_conf["sessions"]==old_conf["sessions"]:
-            if new_conf["sessions"]==True:
-                vhoston = "Enabled"
-            else:
-                vhoston = "Disabled"
-            print("sessions are now: "+str(vhoston))
     else:
         return(old_conf)
         
