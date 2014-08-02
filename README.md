@@ -9,15 +9,23 @@ Requirements:
 - Cherrypy3
 - Mako
 
+Optional:
+=========
+- PHP5
+
 Installing:
 ==========
 1. Install Python 2.7 or higher
 
-2. Install Cherrypy or Cherrypy3 on ubuntu (python-cherrypy or python-cherrypy3)
+2. Install Cherrypy3 (python-cherrypy3)
 
 3. Install mako (python-mako)
 
 4. git clone https://github.com/Red-M/RedServ.git
+
+Optional Install:
+=================
+- install php5-cli
 
 Running:
 ========
@@ -29,11 +37,13 @@ Running:
 
 4. Drop web site files into ./pages
 
-opitional:
-- Add SSL certs and edit ./config to turn on and to make sure the certs are named the same as in the config
+optional:
+- Add SSL certs and edit ./config to turn on SSL and to make sure the certs are named the same as in the config
 
+additional:
+PHP scripting at the current time is very limited, do not expect full apache support for PHP right now.
 
-RedServ's main purpose is to provide an Apache2 + PHP like experience but with just pure Python.
+RedServ's main purpose is to provide an Apache2 + PHP like experience but with just pure Python (or with php and ptyhon).
 The main web server file is very small and doesn't require as much work to get going.
 The Python scripting will be documented but there will be examples provided for how everything works, for now have fun playing with it.
 

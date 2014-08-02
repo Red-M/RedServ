@@ -42,6 +42,7 @@ def config_init(configlocation):
          "vhosts-enabled": true,
          "vhost-lookup": "domains",
          "sessions": false,
+         "php": false,
          "log": true
         }''') + '\n')
 
@@ -64,7 +65,7 @@ def serve_template(tmpl, **kwargs):
     tmpl = lookup.get_template(tmpl)
     return tmpl.render(**kwargs)
     
-def client(ip, port, message):
+def TCP_client(ip, port, message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip, port))
     try:
@@ -82,6 +83,7 @@ cj = CookieJar()
 fileext = [
 "",
 ".py",
+".php",
 ".html",
 ".txt",
 ".png",
@@ -94,6 +96,7 @@ fileext = [
 folderext = [
 "index",
 "index.py",
+"index.php",
 "index.html",
 "index.txt",
 "index.png",
@@ -185,6 +188,10 @@ def notfound2(cherrypy,e,virtloc,params):
     (sysname, nodename, release, version, machine) = os.uname()
     return("404<br>"+str(e).replace(virtloc,"/")+debughandler(params))
     
+def PHP(path):
+    proc = subprocess.check_output(["php",path])
+    return(proc)
+    
 def debughandler(params):
     if "debug" in params:
         if params["debug"]=="1":
@@ -254,6 +261,12 @@ def conf_reload(conf):
             else:
                 vhoston = "Disabled"
             print("vhosts are now: "+str(vhoston))
+        if not new_conf["php"]==old_conf["php"]:
+            if new_conf["php"]==True:
+                phpon = "Enabled"
+            else:
+                phpon = "Disabled"
+            print("php is now: "+str(phpon))
         if not new_conf["log"]==old_conf["log"]:
             if new_conf["log"]==True:
                 log = "Enabled"
@@ -369,7 +382,7 @@ class WebInterface:
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
             for data in fileext:
-                if filename.endswith(data) and os.path.exists(filename) and (not filename.endswith(".py")):
+                if filename.endswith(data) and os.path.exists(filename) and (not (filename.endswith(".py") or filename.endswith(".php"))):
                     typedat = mimetypes.guess_type(filename)
                     (cherrypy.response.headers['Content-Type'],nothing) = typedat
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
@@ -389,6 +402,8 @@ class WebInterface:
             "https_port":SSLPORT
             }
             try:
+                if (filename.endswith(".php")) and (conf["php"]==True):
+                    return(PHP(filename))
                 if filename.endswith(".py"):
                     execfile(filename,globals(),datatoreturn)
                 else:
