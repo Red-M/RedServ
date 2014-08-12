@@ -308,6 +308,17 @@ class WebInterface:
             paramlines = paramlines[:-1]
         if paramlines=="?":
             paramlines = ""
+            
+        try:
+            if conf["vhosts-enabled"]==True:
+                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
+            else:
+                virtloc = os.path.abspath('pages')+os.sep
+        except Exception,e:
+            cherrypy.response.status = 404
+            logging("", 1, [cherrypy,virt_host,list,paramlines])
+            return("")
+        
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
             db_folders = os.path.join("sites",vhosts(virt_host))
@@ -335,15 +346,6 @@ class WebInterface:
         if bad == False:
             headers = {}
             responsecode = 200
-            try:
-                if conf["vhosts-enabled"]==True:
-                    virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
-                else:
-                    virtloc = os.path.abspath('pages')+os.sep
-            except Exception,e:
-                cherrypy.response.status = 404
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return("")
             if len(list)>=1 and str(list[0]).lower()=="static":
                 if str(list[0]).lower()=="static" and len(list)>=2:
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
