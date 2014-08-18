@@ -304,6 +304,7 @@ class WebInterface:
         paramlines = "?"
         if not params=={}:
             for data in params:
+                params[data] = params[data].replace("\n","\\n").replace("\r","\\r")
                 paramlines = paramlines+data+"="+params[data]+"&"
             paramlines = paramlines[:-1]
         if paramlines=="?":
@@ -322,11 +323,11 @@ class WebInterface:
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
             db_folders = os.path.join("sites",vhosts(virt_host))
-            site_glo_data[virt_host]["db_conn"] = get_db_connection(virt_host,db_folders)
+            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         
-        if not str(type(site_glo_data[virt_host]["db_conn"]))=="<type 'sqlite3.Connection'>":
-            site_glo_data[virt_host]["db_conn"] = get_db_connection(virt_host,db_folders)
-        
+        if not str(type(site_glo_data[virt_host]["db_conn_loc"]))=="<type 'tuple'>":
+            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+            
         lookup = template_reload(current_dir) #template refresh
             
     ###Start
