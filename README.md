@@ -1,7 +1,7 @@
 RedServ
 =======
 
-RedServ is a web server built on top of Cherrypy and uses Mako for the template rendering.
+RedServ is a web server built on top of Cherrypy and uses Mako for template rendering.
 
 Requirements:
 =============

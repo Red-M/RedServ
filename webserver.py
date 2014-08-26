@@ -23,7 +23,11 @@ import inspect
 from cookielib import CookieJar
 
 global current_dir
-current_dir = os.path.dirname(os.path.abspath(__file__))
+current_dir = os.path.abspath('')
+global exed
+exed = False
+if current_dir.endswith(".zip"):
+    exed = True
 site_glo_data = {}
 
 def config_init(configlocation):
@@ -518,7 +522,7 @@ def web_init():
     cherrypy.engine.start()
     cherrypy.engine.block()
 
-os.chdir(sys.path[0] or '.')
+os.chdir(current_dir)
 db_loc = os.path.abspath('db')
 pathing = [
 "db",
