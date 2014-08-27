@@ -118,6 +118,37 @@ filetypes = {
 ".mp4": "video/mp4"
 }
 
+fileends = [
+'.doc', '.docx', '.log', '.msg', '.odt', '.pages',
+'.rtf', '.tex', '.txt', '.wpd', '.wps', '.csv', 
+'.dat', '.gbr', '.ged', '.key', '.keychain', '.pps',
+'.ppt', '.pptx', '.sdf', '.tar', '.tax2012', '.vcf',
+'.xml', '.aif', '.iff', '.m3u', '.m4a', '.mid', '.mp3',
+'.mpa', '.ra', '.wav', '.wma', '.3g2', '.3gp', '.asf',
+'.asx', '.avi', '.flv', '.m4v', '.mov', '.mp4', '.mpg',
+'.rm', '.srt', '.swf', '.vob', '.wmv', '.3dm', '.3ds',
+'.max', '.obj', '.bmp', '.dds', '.gif', '.jpg', '.png',
+'.psd', '.pspimage', '.tga', '.thm', '.tif', '.tiff',
+'.yuv', '.ai', '.eps', '.ps', '.svg', '.indd', '.pct',
+'.pdf', '.xlr', '.xls', '.xlsx', '.accdb', '.db', '.dbf',
+'.mdb', '.pdb', '.sql', '.apk', '.app', '.bat', '.cgi',
+'.com', '.exe', '.gadget', '.jar', '.pif', '.vb', '.wsf',
+'.dem', '.gam', '.nes', '.rom', '.sav', '.dwg', '.dxf',
+'.gpx', '.kml', '.kmz', '.asp', '.aspx', '.cer', '.cfm',
+'.csr', '.css', '.htm', '.html', '.js', '.jsp', '.php',
+'.rss', '.xhtml', '.crx', '.plugin', '.fnt', '.fon',
+'.otf', '.ttf', '.cab', '.cpl', '.cur', '.deskthemepack',
+'.dll', '.dmp', '.drv', '.icns', '.ico', '.lnk', '.sys',
+'.cfg', '.ini', '.prf', '.hqx', '.mim', '.uue', '.7z',
+'.cbr', '.deb', '.gz', '.pkg', '.rar', '.rpm', '.sitx',
+'.tar.gz', '.zip', '.zipx', '.bin', '.cue', '.dmg', '.iso',
+'.mdf', '.toast', '.vcd', '.c', '.class', '.cpp', '.cs',
+'.dtd', '.fla', '.h', '.java', '.lua', '.m', '.pl', '.py',
+'.sh', '.sln', '.swift', '.vcxproj', '.xcodeproj', '.bak',
+'.tmp', '.crdownload', '.ics', '.msi', '.part', '.torrent'
+]
+
+
 def filepicker(filename,fileext):
     for data in fileext:
         if os.path.exists(filename+data):
@@ -358,7 +389,14 @@ class WebInterface:
                     if cherrypy.response.status==None:
                         cherrypy.response.status = 200
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return cherrypy.lib.static.serve_file(current_dir+os.sep+os.sep.join(list))
+                    file = current_dir+os.sep+os.sep.join(list)
+                    fileserve = True
+                    for data in fileends:
+                        if file.endswith(data) and fileserve:
+                            fileserve = False
+                            return(cherrypy.lib.static.serve_file(file))
+                    if fileserve==True:
+                        return(cherrypy.lib.static.serve_download(file))
                 else:
                     cherrypy.response.status = 404
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
