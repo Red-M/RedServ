@@ -145,7 +145,8 @@ fileends = [
 '.mdf', '.toast', '.vcd', '.c', '.class', '.cpp', '.cs',
 '.dtd', '.fla', '.h', '.java', '.lua', '.m', '.pl', '.py',
 '.sh', '.sln', '.swift', '.vcxproj', '.xcodeproj', '.bak',
-'.tmp', '.crdownload', '.ics', '.msi', '.part', '.torrent'
+'.tmp', '.crdownload', '.ics', '.msi', '.part', '.torrent',
+'.webm'
 ]
 
 
