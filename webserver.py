@@ -141,7 +141,7 @@ fileends = [
 '.dll', '.dmp', '.drv', '.icns', '.ico', '.lnk', '.sys',
 '.cfg', '.ini', '.prf', '.hqx', '.mim', '.uue', '.7z',
 '.cbr', '.deb', '.gz', '.pkg', '.rar', '.rpm', '.sitx',
-'.tar.gz', '.zip', '.zipx', '.bin', '.cue', '.dmg', '.iso',
+'.bz2', '.zip', '.zipx', '.bin', '.cue', '.dmg', '.iso',
 '.mdf', '.toast', '.vcd', '.c', '.class', '.cpp', '.cs',
 '.dtd', '.fla', '.h', '.java', '.lua', '.m', '.pl', '.py',
 '.sh', '.sln', '.swift', '.vcxproj', '.xcodeproj', '.bak',
