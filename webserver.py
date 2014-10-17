@@ -30,6 +30,29 @@ if current_dir.endswith(".zip"):
     exed = True
 site_glo_data = {}
 
+class RedServer(object):
+    def __init__(self):
+        self.nologging = []
+
+    def test(self,out):
+        print(out)
+
+    def nolog(self,page=None,domain=None):
+        if not page==None:
+            if not page in self.nologging:
+                self.nologging.append(page)
+        if not domain==None:
+            if not domain in self.nologging:
+                self.nologging.append(domain)
+            
+    def log(self,page=None,domain=None):
+        if not page==None:
+            if page in self.nologging:
+                self.nologging.remove(page)
+        if not domain==None:
+            if domain in self.nologging:
+                self.nologging.remove(domain)
+
 def config_init(configlocation):
     if not os.path.exists(configlocation):
         open(configlocation, 'w').write(inspect.cleandoc(
@@ -255,10 +278,12 @@ def logging(logline,logtype,*extra):
                 virt_host = extra[1]
                 list = extra[2]
                 paramlines = extra[3]
-                logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
-                str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
-                ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
-                str(cherrypy.request.headers)+"\n"
+                this_page = virt_host+"/"+"/".join(list)
+                if not this_page in RedServ.nologging and not virt_host in RedServ.nologging:
+                    logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
+                    str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
+                    ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
+                    str(cherrypy.request.headers)+"\n"
                 
             if logtype == 2: #bad vhost log line
                 data = extra[0]
@@ -365,7 +390,7 @@ class WebInterface:
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
             
         lookup = template_reload(current_dir) #template refresh
-            
+        
     ###Start
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
             datsieve = ""
@@ -415,6 +440,7 @@ class WebInterface:
                 if str(e).startswith("[Errno 2]"):
                     filename = filepicker(filename,fileext)
                     if not os.path.exists(filename) or filename==None:
+                        cherrypy.response.status = 404
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
                 if str(e).startswith("[Errno 20]"):
@@ -442,6 +468,8 @@ class WebInterface:
             "request":cherrypy.request,
             "filelocation":virtloc+os.sep.join(list),
             "filename":filename.replace(virtloc+os.sep.join(list),""),
+            "this_page":virt_host+"/"+"/".join(list),
+            "this_domain":virt_host,
             "global_site_data":site_glo_data,
             "site_data":site_glo_data[virt_host],
             "http_port":STDPORT,
@@ -497,11 +525,11 @@ def web_init():
     config_init(os.path.join(current_dir,"config"))
     global conf
     conf = config(os.path.join(current_dir,"config"))
+    global RedServ
+    RedServ = RedServer()
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
         print("ERROR::You need to enable one transfer protocol, either HTTP or HTTPS in the config")
         exit()
-    global input
-    input = {}
     if os.name=="posix":
         (sysname, nodename, release, version, machine) = os.uname()
     else:
