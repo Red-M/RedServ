@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import cherrypy
+import OpenSSL
 import os
 import sys
 reload(sys)
@@ -22,8 +23,9 @@ import traceback
 import inspect
 from cookielib import CookieJar
 
+os.chdir(sys.path[0] or '.')
 global current_dir
-current_dir = os.path.abspath('')
+current_dir = os.path.abspath('.')
 global exed
 exed = False
 if current_dir.endswith(".zip"):
@@ -183,6 +185,34 @@ def filepicker(filename,fileext):
                 filename = (os.path.join(filename,"index"+data))
     return(filename)
     
+def create_ssl_cert(cert_dir="."):
+    CERT_FILE = "cert.pem"
+    KEY_FILE = "privkey.pem"
+    C_F = os.path.join(cert_dir, CERT_FILE)
+    K_F = os.path.join(cert_dir, KEY_FILE)
+    return(C_F,K_F)
+    
+def SSL_cert_gen(nodename):
+    (C_F,K_F) = create_ssl_cert()
+    if not os.path.exists(C_F) or not os.path.exists(K_F):
+        k = OpenSSL.crypto.PKey()
+        k.generate_key(OpenSSL.crypto.TYPE_RSA, 1024)
+        cert = OpenSSL.crypto.X509()
+        cert.get_subject().C = "na"
+        cert.get_subject().ST = "n/a"
+        cert.get_subject().L = "n/a"
+        cert.get_subject().O = "n/a"
+        cert.get_subject().OU = "n/a"
+        cert.get_subject().CN = nodename
+        cert.set_serial_number(1000)
+        cert.gmtime_adj_notBefore(0)
+        cert.gmtime_adj_notAfter(315360000)
+        cert.set_issuer(cert.get_subject())
+        cert.set_pubkey(k)
+        cert.sign(k, 'sha1')
+        open(C_F, "wt").write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
+        open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
+
     
 def sysinfo():
     if os.name=="posix":
@@ -559,9 +589,12 @@ def web_init():
 
     cherrypy.server.unsubscribe()
 
+    global STDPORT
+    STDPORT = conf["HTTP"]["port"]
     global SSLPORT
     SSLPORT = conf["HTTPS"]["port"]
     if conf["HTTPS"]["enabled"]==True:
+        SSL_cert_gen(nodename)
         server1 = cherrypy._cpserver.Server()
         server1.socket_port=SSLPORT
         server1._socket_host='0.0.0.0'
@@ -573,8 +606,6 @@ def web_init():
         server1.subscribe()
     if conf["HTTP"]["enabled"]==True:
         server2 = cherrypy._cpserver.Server()
-        global STDPORT
-        STDPORT = conf["HTTP"]["port"]
         server2.socket_port=STDPORT
         server2._socket_host="0.0.0.0"
         server2.thread_pool=30
@@ -582,9 +613,9 @@ def web_init():
     
     strprnt = "Web server started\n"
     if conf["HTTP"]["enabled"]==True:
-        strprnt = strprnt+"HTTP on port: "+str(server2.socket_port)
+        strprnt = strprnt+"HTTP on port: "+str(server2.socket_port)+"\n"
     if conf["HTTPS"]["enabled"]==True:
-        strprnt = strprnt+"\nHTTPS on port: "+str(server1.socket_port)
+        strprnt = strprnt+"HTTPS on port: "+str(server1.socket_port)
     print(strprnt)
     cherrypy.engine.start()
     cherrypy.engine.block()
