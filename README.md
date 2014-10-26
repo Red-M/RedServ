@@ -7,6 +7,7 @@ Requirements:
 =============
 - Python 2.7+
 - Cherrypy3
+- PyOpenSSL
 - Mako
 
 Optional:
