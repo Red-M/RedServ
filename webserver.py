@@ -35,25 +35,39 @@ site_glo_data = {}
 class RedServer(object):
     def __init__(self):
         self.nologging = []
+        self.nologgingstart = []
+        self.nologgingend = []
 
     def test(self,out):
         print(out)
 
-    def nolog(self,page=None,domain=None):
+    def nolog(self,page=None,domain=None,startingwith=None,endingwith=None):
         if not page==None:
             if not page in self.nologging:
                 self.nologging.append(page)
         if not domain==None:
             if not domain in self.nologging:
                 self.nologging.append(domain)
+        if not startingwith==None:
+            if not startingwith in self.nologgingstart:
+                self.nologgingstart.append(startingwith)
+        if not endingwith==None:
+            if not endwith in self.nologgingend:
+                self.nologgingend.append(endingwith)
             
-    def log(self,page=None,domain=None):
+    def log(self,page=None,domain=None,startingwith=None,endingwith=None):
         if not page==None:
             if page in self.nologging:
                 self.nologging.remove(page)
         if not domain==None:
             if domain in self.nologging:
                 self.nologging.remove(domain)
+        if not startingwith==None:
+            if startingwith in self.nologgingstart:
+                self.nologgingstart.remove(startingwith)
+        if not endingwith==None:
+            if endwith in self.nologgingend:
+                self.nologgingend.remove(endingwith)
 
 def config_init(configlocation):
     if not os.path.exists(configlocation):
@@ -309,7 +323,23 @@ def logging(logline,logtype,*extra):
                 list = extra[2]
                 paramlines = extra[3]
                 this_page = virt_host+"/"+"/".join(list)
-                if not this_page in RedServ.nologging and not virt_host in RedServ.nologging:
+                no_log = False # varible to decided to log or to not to log.
+                if len(RedServ.nologgingstart)>0:
+                    for data in RedServ.nologgingstart:
+                        if data.endswith(".*"):
+                            if this_page.startswith(data[:-2]):
+                                no_log = True
+                if len(RedServ.nologgingend)>0:
+                    for data in RedServ.nologgingend:
+                        if data.startswith(".*"):
+                            if this_page.endswith(data[2:]):
+                                no_log = True
+                if len(RedServ.nologging)>0:
+                    if this_page in RedServ.nologging:
+                        no_log = True
+                    if virt_host in RedServ.nologging:
+                        no_log = True
+                if no_log==False:
                     logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
                     str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
                     ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
