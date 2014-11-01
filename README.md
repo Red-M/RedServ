@@ -44,7 +44,7 @@ optional:
 additional:
 PHP scripting at the current time is very limited, do not expect full apache support for PHP right now.
 
-RedServ's main purpose is to provide an Apache2 + PHP like experience but with just pure Python (or with php and ptyhon).
+RedServ's main purpose is to provide an Apache2 + PHP like experience but with just pure Python (or with php and python).
 The main web server file is very small and doesn't require as much work to get going.
 The Python scripting will be documented but there will be examples provided for how everything works, for now have fun playing with it.
 
