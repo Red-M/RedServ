@@ -37,6 +37,10 @@ class RedServer(object):
         self.nologging = []
         self.nologgingstart = []
         self.nologgingend = []
+        
+        self.noserving = []
+        self.noservingstart = []
+        self.noservingend = []
 
     def test(self,out):
         print(out)
@@ -68,6 +72,16 @@ class RedServer(object):
         if not endingwith==None:
             if endwith in self.nologgingend:
                 self.nologgingend.remove(endingwith)
+    
+    def serve(self,domain,page):
+        virt_page = domain+"/"+page
+        if virt_page in self.noserving:
+            self.noserving.remove(virt_page)
+    
+    def noserve(self,domain,page):
+        virt_page = domain+"/"+page
+        if not virt_page in self.noserving:
+            self.noserving.append(virt_page)
 
 def config_init(configlocation):
     if not os.path.exists(configlocation):
@@ -323,7 +337,7 @@ def logging(logline,logtype,*extra):
                 list = extra[2]
                 paramlines = extra[3]
                 this_page = virt_host+"/"+"/".join(list)
-                no_log = False # varible to decided to log or to not to log.
+                no_log = False # varible to decide to log or to not to log.
                 if len(RedServ.nologgingstart)>0:
                     for data in RedServ.nologgingstart:
                         if data.endswith(".*"):
@@ -453,11 +467,12 @@ class WebInterface:
         
     ###Start
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
+            page = virt_host+"/"+"/".join(list)
             datsieve = ""
             sievedata = {
             "sievetype":"in",
             "cherrypy": cherrypy,
-            "page":virt_host+"/"+"/".join(list),
+            "page":page,
             "data": datsieve,
             "bad":bad,
             "params":params
@@ -465,6 +480,12 @@ class WebInterface:
             sievedata = sieve(sievedata) #pre-page render sieve
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
+            
+            no_serve_message = "404<br>[Errno 2] No such file or directory: '"+"/"+"/".join(list)+"'"
+            if page in RedServ.noserving:
+                bad = True
+                sievedata["data"] = no_serve_message
+                
         if bad == False:
             headers = {}
             responsecode = 200
@@ -597,7 +618,7 @@ def web_init():
     print nodename
     global_conf = {
         'global': { 'engine.autoreload.on': False,
-        'log.error_file': 'site.'+nodename+'.log',
+        'log.error_file': os.path.join('logs','site','site.'+nodename+'.log'),
         'log.screen': False,
         'gzipfilter.on':True,
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
@@ -655,6 +676,7 @@ db_loc = os.path.abspath('db')
 pathing = [
 "db",
 "logs",
+"logs"+os.sep+"site",
 "pages",
 "static",
 "templates"
