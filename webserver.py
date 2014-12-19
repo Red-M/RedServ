@@ -55,7 +55,17 @@ class RedServer(object):
         print(out)
         
     def debugger(self,lvl=5,message=""):
-        print(lvl+": "+message)
+        if lvl==1:
+            lvl = "ERROR"
+        if lvl==2:
+            lvl = "CRITICAL"
+        if lvl==3:
+            lvl = "INFO"
+        if lvl==4:
+            lvl = "MESSAGE"
+        if lvl==5:
+            lvl = "DEBUG"
+        print(str(lvl)+": "+message)
 
     def nolog(self,page=None,domain=None,startingwith=None,endingwith=None):
         if not page==None:
