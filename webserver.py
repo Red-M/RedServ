@@ -21,7 +21,16 @@ import urllib
 import re
 import traceback
 import inspect
+try:
+    import requests
+    global reqcj
+    requests.cookie_session = requests.Session()
+except Exception,e:
+    RedServ.debugger(5,"Could not load requests library.")
 from cookielib import CookieJar
+
+global cj
+cj = CookieJar()
 
 os.chdir(sys.path[0] or '.')
 global current_dir
@@ -44,6 +53,9 @@ class RedServer(object):
 
     def test(self,out):
         print(out)
+        
+    def debugger(self,lvl=5,message=""):
+        print(lvl+": "+message)
 
     def nolog(self,page=None,domain=None,startingwith=None,endingwith=None):
         if not page==None:
@@ -133,9 +145,6 @@ def TCP_client(ip, port, message):
     finally:
         sock.close()
         return data
-
-global cj
-cj = CookieJar()
     
 fileext = [
 "",
@@ -676,7 +685,7 @@ db_loc = os.path.abspath('db')
 pathing = [
 "db",
 "logs",
-"logs"+os.sep+"site",
+os.path.join("logs","site"),
 "pages",
 "static",
 "templates"

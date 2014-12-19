@@ -9,6 +9,7 @@ Requirements:
 - Cherrypy3
 - PyOpenSSL
 - Mako
+- Requests
 
 Optional:
 =========
@@ -22,7 +23,11 @@ Installing:
 
 3. Install mako (python-mako)
 
-4. git clone https://github.com/Red-M/RedServ.git
+4. Install PyOpenSSL (python-openssl)
+
+5. Install Requests (python-requests)
+
+6. git clone https://github.com/Red-M/RedServ.git
 
 Optional Install:
 =================
