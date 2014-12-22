@@ -26,7 +26,7 @@ try:
     global reqcj
     requests.cookie_session = requests.Session()
 except Exception,e:
-    RedServ.debugger(5,"Could not load requests library.")
+    RedServ.debugger(3,"Could not load requests library.")
 from cookielib import CookieJar
 
 global cj
@@ -50,6 +50,7 @@ class RedServer(object):
         self.noserving = []
         self.noservingstart = []
         self.noservingend = []
+        self.lookup = self.template_reload(current_dir)
 
     def test(self,out):
         print(out)
@@ -104,6 +105,23 @@ class RedServer(object):
         virt_page = domain+"/"+page
         if not virt_page in self.noserving:
             self.noserving.append(virt_page)
+            
+    def template_reload(self, current_dir):
+        lookup = TemplateLookup(directories=[os.path.join(current_dir,'templates')])
+        return lookup
+            
+    def serve_template(self, tmpl, **kwargs):
+        """ loads a template and renders it """
+        lookup = self.template_reload(current_dir)
+        tmpl = lookup.get_template(tmpl)
+        return tmpl.render(**kwargs)
+        
+    def sysinfo(self):
+        if os.name=="posix":
+            (sysname, nodename, release, version, machine) = os.uname()
+        else:
+            (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
+        return(nodename)
 
 def config_init(configlocation):
     if not os.path.exists(configlocation):
@@ -131,18 +149,6 @@ def config(configlocation):
         return(con)
     except ValueError, e:
         print 'ERROR: malformed config!', e
-
-def template_reload(current_dir):
-    lookup = TemplateLookup(directories=[os.path.join(current_dir,'templates')])
-    return lookup
-    
-lookup = template_reload(current_dir)
-        
-def serve_template(tmpl, **kwargs):
-    """ loads a template and renders it """
-    lookup = template_reload(current_dir)
-    tmpl = lookup.get_template(tmpl)
-    return tmpl.render(**kwargs)
     
 def TCP_client(ip, port, message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -261,13 +267,6 @@ def SSL_cert_gen(nodename):
         open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
 
     
-def sysinfo():
-    if os.name=="posix":
-        (sysname, nodename, release, version, machine) = os.uname()
-    else:
-        (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
-    return(nodename)
-    
 def sieve(sievedata):
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
     if os.path.exists(sievepath):
@@ -333,14 +332,14 @@ def debughandler(params):
         if params["debug"]=="1":
             if "v" in params:
                 if not params["v"] == "1":
-                    debuginfo = "<br>\n<l>"+sysinfo()+"</l>"
+                    debuginfo = "<br>\n<l>"+RedServ.sysinfo()+"</l>"
                 else:
                     debugtable = []
                     for data in os.uname():
                         debugtable.append(data)
                     debuginfo = "<br>\n<l>"+" ".join(debugtable)+"</l>"
             else:
-                debuginfo = "<br>\n<l>"+sysinfo()+"</l>"
+                debuginfo = "<br>\n<l>"+RedServ.sysinfo()+"</l>"
             return(debuginfo)
     return("")
     
@@ -385,7 +384,7 @@ def logging(logline,logtype,*extra):
                 logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+ \
                 "	"+virt_host[:-hostlen]+"\n"))
                 
-        nodename = sysinfo()
+        nodename = RedServ.sysinfo()
         todaylog = os.path.join(current_dir,"logs","today."+nodename+".log")
         logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"), \
         time.strftime("%m"))
@@ -482,7 +481,7 @@ class WebInterface:
         if not str(type(site_glo_data[virt_host]["db_conn_loc"]))=="<type 'tuple'>":
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
             
-        lookup = template_reload(current_dir) #template refresh
+        RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
@@ -630,14 +629,10 @@ def web_init():
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
         print("ERROR::You need to enable one transfer protocol, either HTTP or HTTPS in the config")
         exit()
-    if os.name=="posix":
-        (sysname, nodename, release, version, machine) = os.uname()
-    else:
-        (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
-    print nodename
+    print RedServ.sysinfo()
     global_conf = {
         'global': { 'engine.autoreload.on': False,
-        'log.error_file': os.path.join('logs','site','site.'+nodename+'.log'),
+        'log.error_file': os.path.join('logs','site','site.'+RedServ.sysinfo()+'.log'),
         'log.screen': False,
         'gzipfilter.on':True,
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
@@ -664,7 +659,7 @@ def web_init():
     global SSLPORT
     SSLPORT = conf["HTTPS"]["port"]
     if conf["HTTPS"]["enabled"]==True:
-        SSL_cert_gen(nodename)
+        SSL_cert_gen(RedServ.sysinfo())
         server1 = cherrypy._cpserver.Server()
         server1.socket_port=SSLPORT
         server1._socket_host='0.0.0.0'
