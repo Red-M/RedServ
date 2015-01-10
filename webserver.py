@@ -186,45 +186,17 @@ folderext = [
 "index.jpg"
 ]
 
-filetypes = {
-".txt": "text/txt",
-".png": "image/png",
-".jpg": "image/jpg",
-".ico": "image/vnd.microsoft.icon",
-".css": "text/css",
-".js": "text/js",
-".mp4": "video/mp4"
-}
-
+# List of file extentions that broswers should be able to show to
+# the user.
 fileends = [
-'.doc', '.docx', '.log', '.msg', '.odt', '.pages',
-'.rtf', '.tex', '.txt', '.wpd', '.wps', '.csv', 
-'.dat', '.gbr', '.ged', '.key', '.keychain', '.pps',
-'.ppt', '.pptx', '.sdf', '.tar', '.tax2012', '.vcf',
-'.xml', '.aif', '.iff', '.m3u', '.m4a', '.mid', '.mp3',
-'.mpa', '.ra', '.wav', '.wma', '.3g2', '.3gp', '.asf',
-'.asx', '.avi', '.flv', '.m4v', '.mov', '.mp4', '.mpg',
-'.rm', '.srt', '.swf', '.vob', '.wmv', '.3dm', '.3ds',
-'.max', '.obj', '.bmp', '.dds', '.gif', '.jpg', '.png',
-'.psd', '.pspimage', '.tga', '.thm', '.tif', '.tiff',
-'.yuv', '.ai', '.eps', '.ps', '.svg', '.indd', '.pct',
-'.pdf', '.xlr', '.xls', '.xlsx', '.accdb', '.db', '.dbf',
-'.mdb', '.pdb', '.sql', '.apk', '.app', '.bat', '.cgi',
-'.com', '.exe', '.gadget', '.jar', '.pif', '.vb', '.wsf',
-'.dem', '.gam', '.nes', '.rom', '.sav', '.dwg', '.dxf',
-'.gpx', '.kml', '.kmz', '.asp', '.aspx', '.cer', '.cfm',
-'.csr', '.css', '.htm', '.html', '.js', '.jsp', '.php',
-'.rss', '.xhtml', '.crx', '.plugin', '.fnt', '.fon',
-'.otf', '.ttf', '.cab', '.cpl', '.cur', '.deskthemepack',
-'.dll', '.dmp', '.drv', '.icns', '.ico', '.lnk', '.sys',
-'.cfg', '.ini', '.prf', '.hqx', '.mim', '.uue', '.7z',
-'.cbr', '.deb', '.gz', '.pkg', '.rar', '.rpm', '.sitx',
-'.bz2', '.zip', '.zipx', '.bin', '.cue', '.dmg', '.iso',
-'.mdf', '.toast', '.vcd', '.c', '.class', '.cpp', '.cs',
-'.dtd', '.fla', '.h', '.java', '.lua', '.m', '.pl', '.py',
-'.sh', '.sln', '.swift', '.vcxproj', '.xcodeproj', '.bak',
-'.tmp', '.crdownload', '.ics', '.msi', '.part', '.torrent',
-'.webm'
+'log', 'rtf', 'tex', 'txt', 'xml', 'm4a', 'mid',
+'mp3', 'mpa', 'wav', 'wma', 'avi', 'flv', 'm4v',
+'mov', 'mp4', 'mpg', 'swf', 'vob', 'wmv', 'bmp',
+'gif', 'jpg', 'png', 'tga', 'tif', 'tiff', 'svg',
+'pdf', 'bat','jsp','php', 'rss', 'xhtml', 'otf',
+'ttf', 'cur', 'ico', 'cfg', 'ini', 'c', 'class',
+'cpp', 'h', 'java', 'lua', 'm', 'pl', 'py', 'sh',
+'webm'
 ]
 
 
@@ -515,11 +487,15 @@ class WebInterface:
                         cherrypy.response.status = 200
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     file = current_dir+os.sep+os.sep.join(list)
+                    
+                    #Checking to see if the file is able to be
+                    #displayed on the browser instead of downloaded.
                     fileserve = True
-                    for data in fileends:
-                        if file.endswith(data) and fileserve:
-                            fileserve = False
-                            return(cherrypy.lib.static.serve_file(file))
+                    fesplit = file.split(".")
+                    feext = fesplit[-1]
+                    if feext in fileends:
+                        fileserve = False
+                        return(cherrypy.lib.static.serve_file(file))
                     if fileserve==True:
                         return(cherrypy.lib.static.serve_download(file))
                 else:
