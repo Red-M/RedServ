@@ -281,7 +281,7 @@ def vhosts(virt_host):
         host = split[0]+"."+split[1]+"."+split[2]
         return(os.path.join(os.path.abspath('pages'),host,split[3]))
     if config_vhost_lookup=="none":
-        return(os.path.abspath('pages'))
+        return("")
     
     
     if not config_vhost_lookup in lookuptypes:
