@@ -196,7 +196,7 @@ fileends = [
 'pdf', 'bat','jsp','php', 'rss', 'xhtml', 'otf',
 'ttf', 'cur', 'ico', 'cfg', 'ini', 'c', 'class',
 'cpp', 'h', 'java', 'lua', 'm', 'pl', 'py', 'sh',
-'webm'
+'webm', 'html', 'css', 'js'
 ]
 
 
@@ -248,15 +248,17 @@ def sieve(sievedata):
 def vhosts(virt_host):
     lookuptypes = [
     "domains",
-    "single-host",
-    "IPs"
+    "single-hosts",
+    "ips",
+    "none"
     ]
     global conf
+    config_vhost_lookup = conf["vhost-lookup"].lower()
     hosts = os.listdir(os.path.abspath('pages'))
     if ":" in virt_host:
         pos = virt_host.find(":")
         virt_host = virt_host[:pos]
-    if conf["vhost-lookup"]=="domains":
+    if config_vhost_lookup=="domains":
         if "." in virt_host:
             pos = virt_host.find(".")+1
             vpath = os.path.join(os.path.abspath('pages'),virt_host[pos:])
@@ -272,13 +274,17 @@ def vhosts(virt_host):
                         return(os.path.join(data,virt_host[:-hostlen]))
         else:
             return(os.path.join(os.path.abspath('pages'),virt_host))
-    if conf["vhost-lookup"]=="single-host":
+    if config_vhost_lookup=="single-hosts":
         return(os.path.join(data,virt_host))
-    if conf["vhost-lookup"]=="IPs":
+    if config_vhost_lookup=="ips":
         split = virt_host.split(".")
         host = split[0]+"."+split[1]+"."+split[2]
         return(os.path.join(os.path.abspath('pages'),host,split[3]))
-    elif not conf["vhost-lookup"] in lookuptypes:
+    if config_vhost_lookup=="none":
+        return(os.path.abspath('pages'))
+    
+    
+    if not config_vhost_lookup in lookuptypes:
         print("FATAL: VHOST LOOKUP IS INCORRECTLY SET TO AN INVALID VALUE! PLEASE EDIT THE CONFIG TO FIX THIS!")
         print(conf["vhost-lookup"])
         exit()
@@ -480,7 +486,7 @@ class WebInterface:
             headers = {}
             responsecode = 200
             if len(list)>=1 and str(list[0]).lower()=="static":
-                if str(list[0]).lower()=="static" and len(list)>=2:
+                if str(list[0])=="static" and len(list)>=2:
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
                         return(notfound(cherrypy,virt_host,paramlines,list,params))
                     if cherrypy.response.status==None:
@@ -490,13 +496,10 @@ class WebInterface:
                     
                     #Checking to see if the file is able to be
                     #displayed on the browser instead of downloaded.
-                    fileserve = True
-                    fesplit = file.split(".")
-                    feext = fesplit[-1]
+                    feext = file.split(".")[-1]
                     if feext in fileends:
-                        fileserve = False
                         return(cherrypy.lib.static.serve_file(file))
-                    if fileserve==True:
+                    else:
                         return(cherrypy.lib.static.serve_download(file))
                 else:
                     cherrypy.response.status = 404
