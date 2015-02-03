@@ -32,7 +32,7 @@ from cookielib import CookieJar
 global cj
 cj = CookieJar()
 
-os.chdir(sys.path[0] or '.')
+os.chdir('.' or sys.path[0])
 global current_dir
 current_dir = os.path.abspath('.')
 global exed
@@ -424,11 +424,6 @@ class WebInterface:
         conf = conf_reload(conf)
         
         bad = False
-        if "host" in cherrypy.request.headers:
-            virt_host = cherrypy.request.headers["host"]
-        else:
-            cherrypy.response.status = 404
-            return("")
         list = []
         for data in args:
             list.append(data)
@@ -440,6 +435,12 @@ class WebInterface:
             paramlines = paramlines[:-1]
         if paramlines=="?":
             paramlines = ""
+        if "host" in cherrypy.request.headers:
+            virt_host = cherrypy.request.headers["host"]
+        else:
+            cherrypy.response.status = 404
+            logging("", 1, [cherrypy,"No host header",list,paramlines])
+            return("")
             
         try:
             if conf["vhosts-enabled"]==True:
@@ -655,12 +656,12 @@ def web_init():
         server2.thread_pool=30
         server2.subscribe()
     
-    strprnt = "Web server started\n"
+    port_statuses = "Web server started"
     if conf["HTTP"]["enabled"]==True:
-        strprnt = strprnt+"HTTP on port: "+str(server2.socket_port)+"\n"
+        port_statuses = port_statuses+"\nHTTP on port: "+str(server2.socket_port)
     if conf["HTTPS"]["enabled"]==True:
-        strprnt = strprnt+"HTTPS on port: "+str(server1.socket_port)
-    print(strprnt)
+        port_statuses = port_statuses+"\nHTTPS on port: "+str(server1.socket_port)
+    print(port_statuses)
     cherrypy.engine.start()
     cherrypy.engine.block()
 
