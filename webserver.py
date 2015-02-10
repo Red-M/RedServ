@@ -34,7 +34,17 @@ cj = CookieJar()
 
 os.chdir('.' or sys.path[0])
 global current_dir
-current_dir = os.path.abspath('.')
+folders = sys.argv[0].split(os.sep)
+proper_path = os.sep.join(folders[0:-1])
+current_dir = os.path.join(os.getcwd(),proper_path)
+if current_dir.endswith("."):
+    current_dir = current_dir[0:-1]
+if folders[-1] in os.listdir(current_dir):
+    print("Found webserver path")
+else:
+    print("Bad web server path")
+
+
 global exed
 exed = False
 if current_dir.endswith(".zip"):
@@ -50,10 +60,25 @@ class RedServer(object):
         self.noserving = []
         self.noservingstart = []
         self.noservingend = []
+        
         self.lookup = self.template_reload(current_dir)
+        os.chdir('.' or sys.path[0])
+        self.current_dir = os.path.abspath('.')
 
     def test(self,out):
         print(out)
+        
+    def TCP_client(self, ip, port, message):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((ip, port))
+        try:
+            sock.sendall(message)
+            data = {}
+            data = ast.literal_eval(sock.recv(1024*16).replace("\\%s" % ("\\"), \
+                                                                            "\\"))
+        finally:
+            sock.close()
+            return data
         
     def debugger(self,lvl=5,message=""):
         if lvl==1:
@@ -506,8 +531,6 @@ class WebInterface:
                     cherrypy.response.status = 404
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return("404")
-            cherrypy.response.headers['X-Best-Pony'] = "Derpy Hooves"
-            cherrypy.response.headers['X-Comment'] = "Someone is reading my headers... >_>"
             cherrypy.response.headers["Server"] = "RedServ 1.0"
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
@@ -535,7 +558,8 @@ class WebInterface:
             for data in fileext:
                 if filename.endswith(data) and os.path.exists(filename) and (not (filename.endswith(".py") or filename.endswith(".php"))):
                     typedat = mimetypes.guess_type(filename)
-                    (cherrypy.response.headers['Content-Type'],nothing) = typedat
+                    if not typedat==(None,None):
+                        (cherrypy.response.headers['Content-Type'],nothing) = typedat
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
             datatoreturn = {
             "sievetype":"out", 
