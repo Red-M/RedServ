@@ -68,7 +68,7 @@ class RedServer(object):
     def test(self,out):
         print(out)
         
-    def TCP_client(self, ip, port, message):
+    def TCP_dict_client(self, ip, port, message):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((ip, port))
         try:
@@ -79,6 +79,17 @@ class RedServer(object):
         finally:
             sock.close()
             return data
+            
+    def TCP_client(self, ip, port, message, message_size=1024):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((ip, port))
+        try:
+            sock.sendall(message)
+            response = sock.recv(message_size)
+            sock.close()
+            return(response)
+        except Expection,e:
+            return(e)
         
     def debugger(self,lvl=5,message=""):
         if lvl==1:
@@ -531,7 +542,7 @@ class WebInterface:
                     cherrypy.response.status = 404
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return("404")
-            cherrypy.response.headers["Server"] = "RedServ 1.0"
+            cherrypy.response.headers["Server"] = "RedServ 1.5"
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
             filename = (virtloc+os.sep.join(list)).replace("..","").replace("//","/")
@@ -582,7 +593,9 @@ class WebInterface:
                 if (filename.endswith(".php")) and (conf["php"]==True):
                     return(PHP(filename))
                 if filename.endswith(".py"):
-                    execfile(filename,globals(),datatoreturn)
+                    for data in globals():
+                        datatoreturn[data] = globals()[data]
+                    execfile(filename,datatoreturn)
                 else:
                     f = open(filename, 'r').read()
                     cherrypy.response.status = 200
