@@ -422,6 +422,9 @@ def conf_reload(conf):
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
         new_conf["HTTP"]["port"] = STDPORT
         new_conf["HTTPS"]["port"] = SSLPORT
+        cherrypy.config.update({'server.socket_host': '64.72.221.48',
+                        'server.socket_port': 80,
+                       })
         if not new_conf["vhosts-enabled"]==old_conf["vhosts-enabled"]:
             if new_conf["vhosts-enabled"]==True:
                 vhoston = "Enabled"
@@ -518,12 +521,16 @@ class WebInterface:
             if page in RedServ.noserving:
                 bad = True
                 sievedata["data"] = no_serve_message
-                
+        cherrypy.response.headers["Server"] = "RedServ 1.5"
         if bad == False:
             headers = {}
             responsecode = 200
-            if len(list)>=1 and str(list[0]).lower()=="static":
-                if str(list[0])=="static" and len(list)>=2:
+            if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
+                return("")
+            filename = (virtloc+os.sep.join(list)).replace("..","").replace("//","/")
+            if len(list)>=2 and str(list[0]).lower()=="static":
+                #cherrypy.response.headers['Cache-Control'] = 'private, max-age=3600, cache'
+                if str(list[0])=="static":
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
                         return(notfound(cherrypy,virt_host,paramlines,list,params))
                     if cherrypy.response.status==None:
@@ -539,13 +546,19 @@ class WebInterface:
                     else:
                         return(cherrypy.lib.static.serve_download(file))
                 else:
-                    cherrypy.response.status = 404
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return("404")
-            cherrypy.response.headers["Server"] = "RedServ 1.5"
-            if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
-                return("")
-            filename = (virtloc+os.sep.join(list)).replace("..","").replace("//","/")
+                    if os.path.exists(filename):
+                        cherrypy.response.status = 200
+                        logging("", 1, [cherrypy,virt_host,list,paramlines])
+                        feext = filename.split(".")[-1]
+                        if feext in fileends:
+                            return(cherrypy.lib.static.serve_file(filename))
+                        else:
+                            return(cherrypy.lib.static.serve_download(filename))
+                    else:
+                        cherrypy.response.status = 404
+                        logging("", 1, [cherrypy,virt_host,list,paramlines])
+                        return("404")
+            cherrypy.response.headers['Cache-Control'] = 'no-cache'
             try:
                 bang = os.listdir(filename)
             except Exception,e:
@@ -571,7 +584,6 @@ class WebInterface:
                     typedat = mimetypes.guess_type(filename)
                     if not typedat==(None,None):
                         (cherrypy.response.headers['Content-Type'],nothing) = typedat
-            cherrypy.response.headers['Cache-Control'] = 'no-cache'
             datatoreturn = {
             "sievetype":"out", 
             "params":params,
@@ -638,9 +650,10 @@ class WebInterface:
 
 def web_init():
     print "Initalising web server..."
-    config_init(os.path.join(current_dir,"config"))
+    conflocation = os.path.join(current_dir,"config")
+    config_init(conflocation)
     global conf
-    conf = config(os.path.join(current_dir,"config"))
+    conf = config(conflocation)
     global RedServ
     RedServ = RedServer()
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
@@ -677,27 +690,33 @@ def web_init():
     SSLPORT = conf["HTTPS"]["port"]
     if conf["HTTPS"]["enabled"]==True:
         SSL_cert_gen(RedServ.sysinfo())
-        server1 = cherrypy._cpserver.Server()
-        server1.socket_port=SSLPORT
-        server1._socket_host='0.0.0.0'
-        server1.thread_pool=30
-        server1.ssl_module = 'builtin'
-        server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
-        server1.ssl_private_key = os.path.join(current_dir,'privkey.pem')
-        server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
-        server1.subscribe()
+        RedServ.server1 = cherrypy._cpserver.Server()
+        RedServ.server1.socket_port=SSLPORT
+        RedServ.server1._socket_host='0.0.0.0'
+        RedServ.server1.thread_pool=30
+        RedServ.server1.thread_pool_max=-1
+        RedServ.server1.shutdown_timeout=1
+        RedServ.server1.statistics=True
+        RedServ.server1.ssl_module = 'builtin'
+        RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
+        RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.pem')
+        RedServ.server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
+        RedServ.server1.subscribe()
     if conf["HTTP"]["enabled"]==True:
-        server2 = cherrypy._cpserver.Server()
-        server2.socket_port=STDPORT
-        server2._socket_host="0.0.0.0"
-        server2.thread_pool=30
-        server2.subscribe()
+        RedServ.server2 = cherrypy._cpserver.Server()
+        RedServ.server2.socket_port=STDPORT
+        RedServ.server2._socket_host="0.0.0.0"
+        RedServ.server2.thread_pool=30
+        RedServ.server2.thread_pool_max=-1
+        RedServ.server2.shutdown_timeout=5
+        RedServ.server2.statistics=True
+        RedServ.server2.subscribe()
     
     port_statuses = "Web server started"
     if conf["HTTP"]["enabled"]==True:
-        port_statuses = port_statuses+"\nHTTP on port: "+str(server2.socket_port)
+        port_statuses = port_statuses+"\nHTTP on port: "+str(RedServ.server2.socket_port)
     if conf["HTTPS"]["enabled"]==True:
-        port_statuses = port_statuses+"\nHTTPS on port: "+str(server1.socket_port)
+        port_statuses = port_statuses+"\nHTTPS on port: "+str(RedServ.server1.socket_port)
     print(port_statuses)
     cherrypy.engine.start()
     cherrypy.engine.block()
