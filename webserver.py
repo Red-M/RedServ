@@ -158,7 +158,21 @@ class RedServer(object):
         else:
             (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
         return(nodename)
+    
+    def serve_static_file(self,virt_host,list,paramlines,filename):
+        cherrypy.response.status = 200
+        logging("", 1, [cherrypy,virt_host,list,paramlines])
+        #Checking to see if the file is able to be
+        #displayed on the browser instead of downloaded.
+        feext = filename.split(".")[-1]
+        #caching header so that browsers can cache our content
+        cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
+        if feext in fileends:
+            return(cherrypy.lib.static.serve_file(filename))
+        else:
+            return(cherrypy.lib.static.serve_download(filename))
 
+ 
 def config_init(configlocation):
     if not os.path.exists(configlocation):
         open(configlocation, 'w').write(inspect.cleandoc(
@@ -529,31 +543,17 @@ class WebInterface:
                 return("")
             filename = (virtloc+os.sep.join(list)).replace("..","").replace("//","/")
             if len(list)>=2 and str(list[0]).lower()=="static":
-                #cherrypy.response.headers['Cache-Control'] = 'private, max-age=3600, cache'
+                #cherrypy.response.headers['Cache-Control'] = 'private, max-age=120'
                 if str(list[0])=="static":
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
                         return(notfound(cherrypy,virt_host,paramlines,list,params))
                     if cherrypy.response.status==None:
                         cherrypy.response.status = 200
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
                     file = current_dir+os.sep+os.sep.join(list)
-                    
-                    #Checking to see if the file is able to be
-                    #displayed on the browser instead of downloaded.
-                    feext = file.split(".")[-1]
-                    if feext in fileends:
-                        return(cherrypy.lib.static.serve_file(file))
-                    else:
-                        return(cherrypy.lib.static.serve_download(file))
+                    return(RedServ.serve_static_file(virt_host,list,paramlines,file))
                 else:
                     if os.path.exists(filename):
-                        cherrypy.response.status = 200
-                        logging("", 1, [cherrypy,virt_host,list,paramlines])
-                        feext = filename.split(".")[-1]
-                        if feext in fileends:
-                            return(cherrypy.lib.static.serve_file(filename))
-                        else:
-                            return(cherrypy.lib.static.serve_download(filename))
+                        RedServ.serve_static_file(virt_host,list,paramlines,filename)
                     else:
                         cherrypy.response.status = 404
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
