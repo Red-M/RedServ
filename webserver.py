@@ -289,11 +289,21 @@ def SSL_cert_gen(nodename):
         open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
 
     
-def sieve(sievedata):
+def sieve(sievedata,sieve_cache):
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
     if os.path.exists(sievepath):
-        execfile(sievepath,globals(),sievedata)
-    return(sievedata)
+        sievetime = os.path.getmtime(sievepath)
+        if not sieve_cache==[]:
+            if sieve_cache[1] < sievetime:
+                sieve_cache[0] = compile(open(sievepath,'r').read(),'<string>','exec')
+                sieve_cache[1] = sievetime
+        else:
+            sieve_cache.append(compile(open(sievepath,'r').read(),'<string>','exec'))
+            sieve_cache.append(sievetime)
+        for data in globals():
+            sievedata[data] = globals()[data]
+        exec(sieve_cache[0],sievedata)
+    return(sievedata,sieve_cache)
 
 def vhosts(virt_host):
     lookuptypes = [
@@ -472,6 +482,7 @@ class WebInterface:
         global cherrypy
         global site_glo_data
         global conf
+        global sieve_cache
         global STDPORT
         global SSLPORT
         conf = conf_reload(conf)
@@ -527,7 +538,7 @@ class WebInterface:
             "bad":bad,
             "params":params
             }
-            sievedata = sieve(sievedata) #pre-page render sieve
+            (sievedata,sieve_cache) = sieve(sievedata,sieve_cache) #pre-page render sieve
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             
@@ -579,11 +590,12 @@ class WebInterface:
                     if str(e).startswith("[Errno 21]"):
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
-            for data in fileext:
-                if filename.endswith(data) and os.path.exists(filename) and (not (filename.endswith(".py") or filename.endswith(".php"))):
-                    typedat = mimetypes.guess_type(filename)
-                    if not typedat==(None,None):
-                        (cherrypy.response.headers['Content-Type'],nothing) = typedat
+            if not (filename.endswith(".py") or filename.endswith(".php")):
+                for data in fileext:
+                    if filename.endswith(data) and os.path.exists(filename) and (not (filename.endswith(".py") or filename.endswith(".php"))):
+                        typedat = mimetypes.guess_type(filename)
+                        if not typedat==(None,None):
+                            (cherrypy.response.headers['Content-Type'],nothing) = typedat
             datatoreturn = {
             "sievetype":"out", 
             "params":params,
@@ -621,10 +633,10 @@ class WebInterface:
                     trace = str(trace+data).replace("\n","<br>")
                 cherrypy.response.status = 404
                 datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
-                datatoreturn = sieve(datatoreturn)
+                (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return(datatoreturn["datareturned"])
-            datatoreturn = sieve(datatoreturn)
+            (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
             cj = datatoreturn['cj']
             site_glo_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
@@ -718,6 +730,14 @@ def web_init():
     if conf["HTTPS"]["enabled"]==True:
         port_statuses = port_statuses+"\nHTTPS on port: "+str(RedServ.server1.socket_port)
     print(port_statuses)
+    
+    sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
+    global sieve_cache
+    sieve_cache = []
+    if os.path.exists(sievepath):
+        sieve_cache.append(compile(open(sievepath,'r').read(),'<string>','exec'))
+        sieve_cache.append(os.path.getmtime(sievepath))
+    
     cherrypy.engine.start()
     cherrypy.engine.block()
 
