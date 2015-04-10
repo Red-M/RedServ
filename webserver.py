@@ -621,10 +621,11 @@ class WebInterface:
                         datatoreturn[data] = globals()[data]
                     execfile(filename,datatoreturn)
                 else:
-                    f = open(filename, 'r').read()
+                    datatoreturn["datareturned"] = open(filename, 'r').read()
                     cherrypy.response.status = 200
+                    (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(f+debughandler(params))
+                    return(datatoreturn["datareturned"]+debughandler(params))
             except Exception,e:
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
