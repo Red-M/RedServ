@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import cherrypy
-import OpenSSL
 import os
 import sys
 reload(sys)
@@ -21,6 +20,13 @@ import urllib
 import re
 import traceback
 import inspect
+try:
+    import OpenSSL
+    global SSL_imported
+    SSL_imported = True
+except Exception,e:
+    RedServ.debugger(3,"Could not load OpenSSL library. Disabling SSL cert generation.")
+    SSL_imported = False
 try:
     import requests
     global reqcj
@@ -268,25 +274,28 @@ def create_ssl_cert(cert_dir="."):
     return(C_F,K_F)
     
 def SSL_cert_gen(nodename):
-    (C_F,K_F) = create_ssl_cert()
-    if not os.path.exists(C_F) or not os.path.exists(K_F):
-        k = OpenSSL.crypto.PKey()
-        k.generate_key(OpenSSL.crypto.TYPE_RSA, 1024)
-        cert = OpenSSL.crypto.X509()
-        cert.get_subject().C = "na"
-        cert.get_subject().ST = "n/a"
-        cert.get_subject().L = "n/a"
-        cert.get_subject().O = "n/a"
-        cert.get_subject().OU = "n/a"
-        cert.get_subject().CN = nodename
-        cert.set_serial_number(1000)
-        cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(315360000)
-        cert.set_issuer(cert.get_subject())
-        cert.set_pubkey(k)
-        cert.sign(k, 'sha1')
-        open(C_F, "wt").write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
-        open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
+    if SSL_imported==True:
+        (C_F,K_F) = create_ssl_cert()
+        if not os.path.exists(C_F) or not os.path.exists(K_F):
+            k = OpenSSL.crypto.PKey()
+            k.generate_key(OpenSSL.crypto.TYPE_RSA, 1024)
+            cert = OpenSSL.crypto.X509()
+            cert.get_subject().C = "na"
+            cert.get_subject().ST = "n/a"
+            cert.get_subject().L = "n/a"
+            cert.get_subject().O = "n/a"
+            cert.get_subject().OU = "n/a"
+            cert.get_subject().CN = nodename
+            cert.set_serial_number(1000)
+            cert.gmtime_adj_notBefore(0)
+            cert.gmtime_adj_notAfter(315360000)
+            cert.set_issuer(cert.get_subject())
+            cert.set_pubkey(k)
+            cert.sign(k, 'sha1')
+            open(C_F, "wt").write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
+            open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
+    else:
+        exit()
 
     
 def sieve(sievedata,sieve_cache):
