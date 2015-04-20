@@ -459,9 +459,6 @@ def conf_reload(conf):
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
         new_conf["HTTP"]["port"] = STDPORT
         new_conf["HTTPS"]["port"] = SSLPORT
-        cherrypy.config.update({'server.socket_host': '64.72.221.48',
-                        'server.socket_port': 80,
-                       })
         if not new_conf["vhosts-enabled"]==old_conf["vhosts-enabled"]:
             if new_conf["vhosts-enabled"]==True:
                 vhoston = "Enabled"
