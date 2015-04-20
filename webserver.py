@@ -25,14 +25,14 @@ try:
     global SSL_imported
     SSL_imported = True
 except Exception,e:
-    RedServ.debugger(3,"Could not load OpenSSL library. Disabling SSL cert generation.")
+    print("ERROR: Could not load OpenSSL library. Disabling SSL cert generation.")
     SSL_imported = False
 try:
     import requests
     global reqcj
     requests.cookie_session = requests.Session()
 except Exception,e:
-    RedServ.debugger(3,"Could not load requests library.")
+    print("ERROR: Could not load requests library.")
 from cookielib import CookieJar
 
 global cj
@@ -46,9 +46,9 @@ current_dir = os.path.join(os.getcwd(),proper_path)
 if current_dir.endswith("."):
     current_dir = current_dir[0:-1]
 if folders[-1] in os.listdir(current_dir):
-    print("Found webserver path")
+    print("INFO: Found webserver path")
 else:
-    print("Bad web server path")
+    print("INFO: Bad web server path")
 
 
 global exed
@@ -98,16 +98,20 @@ class RedServer(object):
             return(e)
         
     def debugger(self,lvl=5,message=""):
+        if lvl==0:
+            lvl = "FATAL"
         if lvl==1:
-            lvl = "ERROR"
-        if lvl==2:
             lvl = "CRITICAL"
+        if lvl==2:
+            lvl = "ERROR"
         if lvl==3:
             lvl = "INFO"
         if lvl==4:
             lvl = "MESSAGE"
         if lvl==5:
             lvl = "DEBUG"
+        if "\n" in message:
+            message = message.replace("\n","\n"+str(lvl)+": ")
         print(str(lvl)+": "+message)
 
     def nolog(self,page=None,domain=None,startingwith=None,endingwith=None):
@@ -354,7 +358,7 @@ def vhosts(virt_host):
     
     
     if not config_vhost_lookup in lookuptypes:
-        print("FATAL: VHOST LOOKUP IS INCORRECTLY SET TO AN INVALID VALUE! PLEASE EDIT THE CONFIG TO FIX THIS!")
+        RedServ.debugger(0,"VHOST LOOKUP IS INCORRECTLY SET TO AN INVALID VALUE! PLEASE EDIT THE CONFIG TO FIX THIS!")
         print(conf["vhost-lookup"])
         exit()
 
@@ -477,7 +481,7 @@ def conf_reload(conf):
                 log = "Disabled"
             print("Logging is now "+str(log))
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
-            print("Virtual Host look up is now done by "+new_conf["vhost-lookup"])
+            RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
         return(new_conf)
     else:
         return(old_conf)
@@ -671,7 +675,7 @@ class WebInterface:
         
 
 def web_init():
-    print "Initalising web server..."
+    print("INFO: Initalising web server...")
     conflocation = os.path.join(current_dir,"config")
     config_init(conflocation)
     global conf
@@ -679,9 +683,9 @@ def web_init():
     global RedServ
     RedServ = RedServer()
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
-        print("ERROR::You need to enable one transfer protocol, either HTTP or HTTPS in the config")
+        RedServ.debugger(0,"You need to enable one transfer protocol, either HTTP or HTTPS in the config")
         exit()
-    print RedServ.sysinfo()
+    RedServ.debugger(3,"Hostname: "+RedServ.sysinfo())
     global_conf = {
         'global': { 'engine.autoreload.on': False,
         'log.error_file': os.path.join('logs','site','site.'+RedServ.sysinfo()+'.log'),
@@ -739,7 +743,7 @@ def web_init():
         port_statuses = port_statuses+"\nHTTP on port: "+str(RedServ.server2.socket_port)
     if conf["HTTPS"]["enabled"]==True:
         port_statuses = port_statuses+"\nHTTPS on port: "+str(RedServ.server1.socket_port)
-    print(port_statuses)
+    RedServ.debugger(3,port_statuses)
     
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
     global sieve_cache
