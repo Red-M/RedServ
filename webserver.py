@@ -282,7 +282,7 @@ def SSL_cert_gen(nodename):
         (C_F,K_F) = create_ssl_cert()
         if not os.path.exists(C_F) or not os.path.exists(K_F):
             k = OpenSSL.crypto.PKey()
-            k.generate_key(OpenSSL.crypto.TYPE_RSA, 1024)
+            k.generate_key(OpenSSL.crypto.TYPE_RSA, 4096)
             cert = OpenSSL.crypto.X509()
             cert.get_subject().C = "na"
             cert.get_subject().ST = "n/a"
@@ -295,7 +295,7 @@ def SSL_cert_gen(nodename):
             cert.gmtime_adj_notAfter(315360000)
             cert.set_issuer(cert.get_subject())
             cert.set_pubkey(k)
-            cert.sign(k, 'sha1')
+            cert.sign(k, 'sha256')
             open(C_F, "wt").write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
             open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
     else:
