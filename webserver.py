@@ -288,7 +288,7 @@ def SSL_cert_gen(nodename):
             cert.get_subject().ST = "n/a"
             cert.get_subject().L = "n/a"
             cert.get_subject().O = "n/a"
-            cert.get_subject().OU = "n/a"
+            cert.get_subject().OU = "n/a "+str(time.time())
             cert.get_subject().CN = nodename
             cert.set_serial_number(1000)
             cert.gmtime_adj_notBefore(0)
@@ -464,19 +464,19 @@ def conf_reload(conf):
                 vhoston = "Enabled"
             else:
                 vhoston = "Disabled"
-            print("vhosts are now: "+str(vhoston))
+            RedServ.debugger(3,"vhosts are now: "+str(vhoston))
         if not new_conf["php"]==old_conf["php"]:
             if new_conf["php"]==True:
                 phpon = "Enabled"
             else:
                 phpon = "Disabled"
-            print("php is now: "+str(phpon))
+            RedServ.debugger(3,"php is now: "+str(phpon))
         if not new_conf["log"]==old_conf["log"]:
             if new_conf["log"]==True:
                 log = "Enabled"
             else:
                 log = "Disabled"
-            print("Logging is now "+str(log))
+            RedServ.debugger(3,"Logging is now "+str(log))
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
         return(new_conf)
