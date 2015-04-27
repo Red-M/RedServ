@@ -67,12 +67,24 @@ class RedServer(object):
         self.noservingstart = []
         self.noservingend = []
         
+        self.http_port = 8080
+        self.https_port = 8081
+        
         self.lookup = self.template_reload(current_dir)
         os.chdir('.' or sys.path[0])
         self.current_dir = os.path.abspath('.')
 
     def test(self,out):
         print(out)
+        
+    def force_https(self,cherrypy,url):
+        if not cherrypy.request.local.port==self.https_port:
+            if not url.startswith("https://"):
+                url = "https://"+url
+            raise cherrypy.HTTPRedirect(url)
+        else:
+            return("")
+            
         
     def TCP_dict_client(self, ip, port, message):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -183,9 +195,9 @@ class RedServer(object):
             return(cherrypy.lib.static.serve_download(filename))
 
  
-def config_init(configlocation):
-    if not os.path.exists(configlocation):
-        open(configlocation, 'w').write(inspect.cleandoc(
+def config_init(config_location):
+    if not os.path.exists(config_location):
+        open(config_location, 'w').write(inspect.cleandoc(
         r'''{
          "HTTP":{
          "enabled": true,
@@ -203,10 +215,12 @@ def config_init(configlocation):
          "log": true
         }''') + '\n')
 
-def config(configlocation):
+def config(config_location):
     try:
-        con = json.load(open(configlocation))
-        return(con)
+        if os.path.getmtime(config_location)>config_cache[1]:
+            config_cache[0] = json.load(open(config_location))
+            config_cache[1] = os.path.getmtime(config_location)
+        return(config_cache[0])
     except ValueError, e:
         print 'ERROR: malformed config!', e
     
@@ -452,9 +466,11 @@ def logging(logline,logtype,*extra):
 def conf_reload(conf):
     global STDPORT
     global SSLPORT
-    old_conf = conf
+    old_conf = config_cache[0]
+    old_time = config_cache[1]
     new_conf = config(os.path.join(current_dir,"config"))
-    if not old_conf==new_conf:
+    config_cache[0] = new_conf
+    if not old_time==config_cache[1]:
         new_conf["HTTP"]["enabled"] = old_conf["HTTP"]["enabled"]
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
         new_conf["HTTP"]["port"] = STDPORT
@@ -479,10 +495,9 @@ def conf_reload(conf):
             RedServ.debugger(3,"Logging is now "+str(log))
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
-        return(new_conf)
-    else:
-        return(old_conf)
-        
+    return(new_conf)
+
+
 class WebInterface:
     """ main web interface class """
 
@@ -496,6 +511,9 @@ class WebInterface:
         global STDPORT
         global SSLPORT
         conf = conf_reload(conf)
+        
+        RedServ.http_port = STDPORT
+        RedServ.https_port = SSLPORT
         
         bad = False
         list = []
@@ -637,6 +655,11 @@ class WebInterface:
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(datatoreturn["datareturned"]+debughandler(params))
             except Exception,e:
+                if type(e)==type(cherrypy.HTTPRedirect("")):
+                    https_redirect_str = str(e).split("'], ")
+                    cherrypy.response.status = 303
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    raise(cherrypy.HTTPRedirect(https_redirect_str[0][3:]))
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
                 trace = ""
@@ -675,6 +698,10 @@ def web_init():
     print("INFO: Initalising web server...")
     conflocation = os.path.join(current_dir,"config")
     config_init(conflocation)
+    global config_cache
+    config_cache = []
+    config_cache.append(json.load(open(conflocation)))
+    config_cache.append(os.path.getmtime(conflocation))
     global conf
     conf = config(conflocation)
     global RedServ
