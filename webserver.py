@@ -20,6 +20,7 @@ import urllib
 import re
 import traceback
 import inspect
+import cgi
 try:
     import OpenSSL
     global SSL_imported
@@ -93,7 +94,8 @@ class RedServer(object):
         ex = traceback.format_exception(type_, value_, traceback_)
         trace = ""
         for data in ex:
-            trace = str(trace+data).replace("\n","<br>")
+            trace = str(trace+data)
+        trace = cgi.escape(trace).encode('utf-8', 'xmlcharrefreplace').replace("\n","<br>")
         return(trace)
         
     def TCP_dict_client(self, ip, port, message):
