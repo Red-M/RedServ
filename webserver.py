@@ -604,7 +604,7 @@ class WebInterface:
                     return(RedServ.serve_static_file(virt_host,list,paramlines,file))
                 else:
                     if os.path.exists(filename):
-                        RedServ.serve_static_file(virt_host,list,paramlines,filename)
+                        return(RedServ.serve_static_file(virt_host,list,paramlines,filename))
                     else:
                         cherrypy.response.status = 404
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
