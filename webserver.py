@@ -77,14 +77,24 @@ class RedServer(object):
     def test(self,out):
         print(out)
         
-    def force_https(self,cherrypy,url):
-        if not cherrypy.request.local.port==self.https_port:
-            if not url.startswith("https://"):
-                url = "https://"+url
-            raise cherrypy.HTTPRedirect(url)
-        else:
-            return("")
+    def force_https(self,cherrypy,url,redirect=True):
+        if redirect==True:
+            if not cherrypy.request.local.port==self.https_port:
+                if not url.startswith("https://"):
+                    url = "https://"+url
+                raise(cherrypy.HTTPRedirect(url))
+            else:
+                return("")
+        #add reserv based message saying to use https here.
             
+    
+    def trace_back(self):
+        type_, value_, traceback_ = sys.exc_info()
+        ex = traceback.format_exception(type_, value_, traceback_)
+        trace = ""
+        for data in ex:
+            trace = str(trace+data).replace("\n","<br>")
+        return(trace)
         
     def TCP_dict_client(self, ip, port, message):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
