@@ -137,6 +137,15 @@ class RedServer(object):
         if "\n" in message:
             message = message.replace("\n","\n"+str(lvl)+": ")
         print(str(lvl)+": "+message)
+        
+    def cached_config_load(self,name,conf_loc,site_data):
+        if not name=="":
+            name = "_"+name
+        last_config_load = os.path.getmtime(conf_loc)
+        if (not "config"+name+"_time" in site_data) or (last_config_load>site_data["config"+name+"_time"]):
+            site_data["config"+name] = json.load(open(conf_loc))
+            site_data["config"+name+"_time"] = last_config_load
+        return(site_data)
 
     def nolog(self,page=None,domain=None,startingwith=None,endingwith=None):
         if not page==None:
