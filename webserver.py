@@ -202,6 +202,17 @@ class RedServer(object):
             (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
         return(nodename)
     
+    def basic_auth(self, realm, users):
+        cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="'+realm+'"'
+        try:
+            cherrypy.lib.auth_basic.basic_auth(realm, users)
+        except Exception,e:
+            if not str(e).startswith("'dict' object"):
+                return(False)
+            else:
+                pass
+        return(True)
+    
     def serve_static_file(self,virt_host,list,paramlines,filename):
         cherrypy.response.status = 200
         logging("", 1, [cherrypy,virt_host,list,paramlines])
