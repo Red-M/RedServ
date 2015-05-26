@@ -68,6 +68,12 @@ class RedServer(object):
         self.noservingstart = []
         self.noservingend = []
         
+        self.basicauth = []
+        self.basicauthstart = []
+        self.basicauthend = []
+        
+        self.loggedinuser = ""
+        
         self.http_port = 8080
         self.https_port = 8081
         
@@ -208,10 +214,25 @@ class RedServer(object):
         try:
             cherrypy.lib.auth_basic.basic_auth(realm, checkpassword)
         except Exception,e:
-            if str(e).startswith("(401,"):
+            if type(e)==type(cherrypy.HTTPError(404)):
                 status, error = e
-                return(error,status)
-        return(None,200)
+                raise(cherrypy.HTTPError(status,error))
+        self.loggedinuser = cherrypy.request.login
+        return(self.loggedinuser)
+        
+    def basicauthprotect(self,page=None,domain=None,startingwith=None,endingwith=None):
+        if not page==None:
+            if not page in self.basicauth:
+                self.basicauth.append(page)
+        if not domain==None:
+            if not domain in self.basicauth:
+                self.basicauth.append(domain)
+        if not startingwith==None:
+            if not startingwith in self.basicauthstart:
+                self.basicauthstart.append(startingwith)
+        if not endingwith==None:
+            if not endwith in self.basicauthend:
+                self.basicauthend.append(endingwith)
     
     def serve_static_file(self,virt_host,list,paramlines,filename):
         cherrypy.response.status = 200
@@ -606,6 +627,12 @@ class WebInterface:
             if page in RedServ.noserving:
                 bad = True
                 sievedata["data"] = no_serve_message
+            #if cherrypy.request.login==None:
+            #    if (page in RedServ.basicauth) or (virt_host in RedServ.basicauth):
+            #        bad = True
+            #        datatoreturn["datareturned"] = "Please login."
+            #        cherrypy.response.status = 401
+            #   ^ handle basic auth protection requests and make sure to add input of a realm and a user list.    
         cherrypy.response.headers["Server"] = "RedServ 1.5"
         if bad == False:
             headers = {}
@@ -692,6 +719,10 @@ class WebInterface:
                     cherrypy.response.status = 303
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     raise(cherrypy.HTTPRedirect(https_redirect_str[0][3:]))
+                if type(e)==type(cherrypy.HTTPError(404)):
+                    status,error = e
+                    cherrypy.response.status = status
+                    return(error)
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
                 trace = ""
