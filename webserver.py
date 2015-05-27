@@ -712,6 +712,7 @@ class WebInterface:
                     cherrypy.response.status = 200
                     (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                     return(datatoreturn["datareturned"]+debughandler(params))
             except Exception,e:
                 if type(e)==type(cherrypy.HTTPRedirect("")):
