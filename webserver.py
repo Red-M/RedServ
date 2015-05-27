@@ -316,14 +316,14 @@ folderext = [
 # List of file extentions that broswers should be able to show to
 # the user.
 fileends = [
-'log', 'rtf', 'tex', 'txt', 'xml', 'm4a', 'mid',
-'mp3', 'mpa', 'wav', 'wma', 'avi', 'flv', 'm4v',
-'mov', 'mp4', 'mpg', 'swf', 'vob', 'wmv', 'bmp',
-'gif', 'jpg', 'png', 'tga', 'tif', 'tiff', 'svg',
-'pdf', 'bat','jsp','php', 'rss', 'xhtml', 'otf',
-'ttf', 'cur', 'ico', 'cfg', 'ini', 'c', 'class',
-'cpp', 'h', 'java', 'lua', 'm', 'pl', 'py', 'sh',
-'webm', 'html', 'css', 'js'
+'.log', '.rtf', '.tex', '.txt', '.xml', '.m4a', '.mid',
+'.mp3', '.mpa', '.wav', '.wma', '.avi', '.flv', '.m4v',
+'.mov', '.mp4', '.mpg', '.swf', '.vob', '.wmv', '.bmp',
+'.gif', '.jpg', '.png', '.tga', '.tif', '.tiff', '.svg',
+'.pdf', '.bat','jsp','php', '.rss', '.xhtml', '.otf',
+'.ttf', '.cur', '.ico', '.cfg', '.ini', '.c', '.class',
+'.cpp', '.h', '.java', '.lua', '.m', '.pl', '.py', '.sh',
+'.webm', '.html', '.css', '.js'
 ]
 
 
