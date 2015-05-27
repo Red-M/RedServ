@@ -679,7 +679,7 @@ class WebInterface:
                         return(notfound2(cherrypy,e,virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
                 for data in fileext:
-                    if filename.endswith(data) and os.path.exists(filename) and (not (filename.endswith(".py") or filename.endswith(".php"))):
+                    if filename.endswith(data) and os.path.exists(filename):
                         typedat = mimetypes.guess_type(filename)
                         if not typedat==(None,None):
                             (cherrypy.response.headers['Content-Type'],nothing) = typedat
