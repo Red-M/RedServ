@@ -678,7 +678,7 @@ class WebInterface:
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
-                for data in fileext:
+                for data in fileends:
                     if filename.endswith(data) and os.path.exists(filename):
                         typedat = mimetypes.guess_type(filename)
                         if not typedat==(None,None):
@@ -712,7 +712,6 @@ class WebInterface:
                     cherrypy.response.status = 200
                     (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                     return(datatoreturn["datareturned"]+debughandler(params))
             except Exception,e:
                 if type(e)==type(cherrypy.HTTPRedirect("")):
@@ -789,7 +788,7 @@ def web_init():
         "/favicon.ico": {
         'tools.staticfile.on' : True,
         'tools.staticfile.filename' : os.path.join(current_dir,
-        'static')+"/favicon.ico",
+        'static', "favicon.ico"),
         }
     }
     cherrypy.config.update(global_conf)
