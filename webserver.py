@@ -237,12 +237,10 @@ class RedServer(object):
     def serve_static_file(self,virt_host,list,paramlines,filename):
         cherrypy.response.status = 200
         logging("", 1, [cherrypy,virt_host,list,paramlines])
-        #Checking to see if the file is able to be
-        #displayed on the browser instead of downloaded.
-        feext = filename.split(".")[-1]
         #caching header so that browsers can cache our content
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
-        if feext in fileends:
+        typedat = mimetypes.guess_type(filename)
+        if not typedat==(None,None):
             return(cherrypy.lib.static.serve_file(filename))
         else:
             return(cherrypy.lib.static.serve_download(filename))
@@ -678,11 +676,9 @@ class WebInterface:
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
-                for data in fileends:
-                    if filename.endswith(data) and os.path.exists(filename):
-                        typedat = mimetypes.guess_type(filename)
-                        if not typedat==(None,None):
-                            (cherrypy.response.headers['Content-Type'],nothing) = typedat
+                typedat = mimetypes.guess_type(filename)
+                if not typedat==(None,None):
+                    (cherrypy.response.headers['Content-Type'],nothing) = typedat
             datatoreturn = {
             "sievetype":"out", 
             "params":params,
@@ -725,9 +721,7 @@ class WebInterface:
                     return(error)
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
-                trace = ""
-                for data in ex:
-                    trace = str(trace+data).replace("\n","<br>")
+                trace = "<br>\n".join(ex)
                 cherrypy.response.status = 404
                 datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
