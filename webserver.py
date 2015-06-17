@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import cherrypy
 import os
 import sys
@@ -610,6 +610,7 @@ class WebInterface:
             
             no_serve_message = "404<br>[Errno 2] No such file or directory: '"+"/"+"/".join(list)+"'"
             if page in RedServ.noserving:
+                cherrypy.response.status = 404
                 bad = True
                 sievedata["data"] = no_serve_message
             #if cherrypy.request.login==None:
@@ -632,6 +633,7 @@ class WebInterface:
                         return(notfound(cherrypy,virt_host,paramlines,list,params))
                     if cherrypy.response.status==None:
                         cherrypy.response.status = 200
+                    
                     file = current_dir+os.sep+os.sep.join(list)
                     return(RedServ.serve_static_file(virt_host,list,paramlines,file))
                 else:
@@ -705,6 +707,7 @@ class WebInterface:
                 if type(e)==type(cherrypy.HTTPError(404)):
                     status,error = e
                     cherrypy.response.status = status
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(error)
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
@@ -730,7 +733,7 @@ class WebInterface:
             else:
                 cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
             return(str(datatoreturn["datareturned"]))
-        elif bad == True:
+        else:
             logging("", 1, [cherrypy,virt_host,list,paramlines])
             return(str(sievedata["data"]))
     ###end
