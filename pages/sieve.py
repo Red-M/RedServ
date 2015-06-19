@@ -1,18 +1,10 @@
-global regexmatch2
-def regexmatch2(text,regex):
-    match = regex.match(text)
-    if not match:
-        return("")
-    (matcho,) = match.groups()
-    return matcho
-    
 def sievein(cherrypy,page,data,bad):
     if "host" in cherrypy.request.headers:
         if cherrypy.request.headers['Host'] == "host":
             cherrypy.response.status = 404
             bad = True
         if ":" in cherrypy.request.headers["host"]:
-            cherrypy.request.headers["host"] = regexmatch2(cherrypy.request.headers["host"],re.compile(r'(.+?)\:.*',re.DOTALL))
+            cherrypy.request.headers["host"] = cherrypy.request.headers["host"].split(":")[0]
     cherrypy.response.headers["Server"] = "RedServ 1.0"
     if "User-Agent" in cherrypy.request.headers:
         if "Baiduspider" in cherrypy.request.headers["User-Agent"]:
