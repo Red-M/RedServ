@@ -64,6 +64,8 @@ class RedServer(object):
         self.nologgingstart = []
         self.nologgingend = []
         
+        self.staticfileserve = staticfileserve
+        
         self.noserving = []
         self.noservingstart = []
         self.noservingend = []
@@ -244,7 +246,21 @@ class RedServer(object):
             return(cherrypy.lib.static.serve_file(filename))
         else:
             return(cherrypy.lib.static.serve_download(filename))
+    
+    def static_file_serve(self,cherrypy,filename):
+        #caching header so that browsers can cache our content
+        cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
+        typedat = mimetypes.guess_type(filename)
+        if not typedat==(None,None):
+            return(self.staticfileserve(cherrypy.lib.static.serve_file(filename)))
+        else:
+            return(self.staticfileserve(cherrypy.lib.static.serve_download(filename)))
 
+class staticfileserve(Exception):
+     def __init__(self, value):
+         self.value = value
+     def __str__(self):
+         return repr(self.value)
  
 def config_init(config_location):
     if not os.path.exists(config_location):
@@ -699,11 +715,12 @@ class WebInterface:
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(datatoreturn["datareturned"]+debughandler(params))
             except Exception,e:
+                if type(e)==type(RedServ.staticfileserve("")):
+                    return(e.value)
                 if type(e)==type(cherrypy.HTTPRedirect("")):
-                    https_redirect_str = str(e).split("'], ")
-                    cherrypy.response.status = 303
+                    (https_redirect_str,cherrypy.response.status) = e
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    raise(cherrypy.HTTPRedirect(https_redirect_str[0][3:]))
+                    raise(e)
                 if type(e)==type(cherrypy.HTTPError(404)):
                     status,error = e
                     cherrypy.response.status = status
