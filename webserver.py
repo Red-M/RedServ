@@ -74,8 +74,6 @@ class RedServer(object):
         self.basicauthstart = []
         self.basicauthend = []
         
-        self.loggedinuser = ""
-        
         self.http_port = 8080
         self.https_port = 8081
         
@@ -783,7 +781,8 @@ def web_init():
         'tools.gzip.on':True,
         'tools.encode.on':True,
         'tools.decode.on':True,
-        'tools.sessions.on':conf["sessions"]
+        'tools.sessions.on':conf["sessions"],
+        'tools.sessions.secure':conf["sessions"]
     }}
     application_conf = {
         "/favicon.ico": {
