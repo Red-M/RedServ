@@ -369,21 +369,33 @@ def SSL_cert_gen(nodename):
 
     
 def sieve(sievedata,sieve_cache):
-    sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
-    if os.path.exists(sievepath):
-        sievetime = os.path.getmtime(sievepath)
-        if not sieve_cache==[]:
-            if sieve_cache[1] < sievetime:
-                sieve_cache[0] = compile(open(sievepath,'r').read(),'<string>','exec')
-                sieve_cache[1] = sievetime
-        else:
-            sieve_cache.append(compile(open(sievepath,'r').read(),'<string>','exec'))
-            sieve_cache.append(sievetime)
-        for data in globals():
-            sievedata[data] = globals()[data]
-        exec(sieve_cache[0],sievedata)
+    sieves = []
+    sieves.append((os.path.join(os.path.abspath('pages'),"sieve.py"),"global"))
+    sieves.append((os.path.join(os.path.abspath(sievedata["vhost_location"]),"sieve.py"),sievedata["this_domain"]))
+    for data in sieves:
+        (sievepath,sievename) = data
+        if not sievename in sieve_cache:
+            sieve_cache[sievename] = []
+        (sievedata,sieve_cache[sievename]) = sieve_exec(sievedata,sieve_cache[sievename],sievepath,sievename)
     return(sievedata,sieve_cache)
 
+def sieve_exec(sievedata,sievecache,sievepath,sievename):
+    if os.path.exists(sievepath):
+        sievetime = os.path.getmtime(sievepath)
+        if not sievename=="global":
+            RedServ.noserve(sievedata["this_domain"],"sieve.py")
+        if not sievecache==[]:
+            if sievecache[1] < sievetime:
+                sievecache[0] = compile(open(sievepath,'r').read(),'<string>','exec')
+                sievecache[1] = sievetime
+        else:
+            sievecache.append(compile(open(sievepath,'r').read(),'<string>','exec'))
+            sievecache.append(sievetime)
+        for data in globals():
+            sievedata[data] = globals()[data]
+        exec(sievecache[0],sievedata)
+    return(sievedata,sievecache)
+    
 def vhosts(virt_host):
     lookuptypes = [
     "domains",
@@ -614,6 +626,8 @@ class WebInterface:
             "sievetype":"in",
             "cherrypy": cherrypy,
             "page":page,
+            "this_domain":virt_host,
+            "vhost_location":virtloc,
             "data": datsieve,
             "bad":bad,
             "params":params
@@ -691,6 +705,7 @@ class WebInterface:
             "response":responsecode,
             "request":cherrypy.request,
             "filelocation":virtloc+os.sep.join(list),
+            "vhost_location":virtloc,
             "filename":filename.replace(virtloc+os.sep.join(list),""),
             "this_page":virt_host+"/"+"/".join(list),
             "this_domain":virt_host,
@@ -834,10 +849,11 @@ def web_init():
     
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
     global sieve_cache
-    sieve_cache = []
+    sieve_cache = {}
+    sieve_cache["global"] = []
     if os.path.exists(sievepath):
-        sieve_cache.append(compile(open(sievepath,'r').read(),'<string>','exec'))
-        sieve_cache.append(os.path.getmtime(sievepath))
+        sieve_cache["global"].append(compile(open(sievepath,'r').read(),'<string>','exec'))
+        sieve_cache["global"].append(os.path.getmtime(sievepath))
     
     cherrypy.engine.start()
     cherrypy.engine.block()
