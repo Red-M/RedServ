@@ -632,7 +632,23 @@ class WebInterface:
             "bad":bad,
             "params":params
             }
-            (sievedata,sieve_cache) = sieve(sievedata,sieve_cache) #pre-page render sieve
+            try:
+                (sievedata,sieve_cache) = sieve(sievedata,sieve_cache) #pre-page render sieve
+            except Exception,e:
+                if type(e)==type(RedServ.staticfileserve("")):
+                    return(e.value)
+                if type(e)==type(cherrypy.HTTPRedirect("")):
+                    (https_redirect_str,cherrypy.response.status) = e
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    raise(e)
+                if type(e)==type(cherrypy.HTTPError(404)):
+                    status,error = e
+                    cherrypy.response.status = status
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    return(error)
+                cherrypy.response.status = 404
+                logging("", 1, [cherrypy,virt_host,list,paramlines])
+                return("404<br>\n"+RedServ.trace_back().replace("\n","<br>\n"))
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             
@@ -747,7 +763,23 @@ class WebInterface:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return(datatoreturn["datareturned"])
-            (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
+            try:
+                (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
+            except Exception,e:
+                if type(e)==type(RedServ.staticfileserve("")):
+                    return(e.value)
+                if type(e)==type(cherrypy.HTTPRedirect("")):
+                    (https_redirect_str,cherrypy.response.status) = e
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    raise(e)
+                if type(e)==type(cherrypy.HTTPError(404)):
+                    status,error = e
+                    cherrypy.response.status = status
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    return(error)
+                cherrypy.response.status = 404
+                logging("", 1, [cherrypy,virt_host,list,paramlines])
+                return("404<br>\n"+RedServ.trace_back().replace("\n","<br>\n"))
             cj = datatoreturn['cj']
             site_glo_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
