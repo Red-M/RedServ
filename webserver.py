@@ -829,7 +829,8 @@ def web_init():
         'tools.encode.on':True,
         'tools.decode.on':True,
         'tools.sessions.on':conf["sessions"],
-        'tools.sessions.secure':conf["sessions"]
+        'tools.sessions.secure':conf["sessions"],
+        'response.timeout': 310
     }}
     application_conf = {
         "/favicon.ico": {
@@ -887,6 +888,7 @@ def web_init():
         sieve_cache["global"].append(compile(open(sievepath,'r').read(),'<string>','exec'))
         sieve_cache["global"].append(os.path.getmtime(sievepath))
     
+    cherrypy.engine.signals.subscribe()
     cherrypy.engine.start()
     cherrypy.engine.block()
 
