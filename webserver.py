@@ -317,23 +317,34 @@ fileext = [
 folderext = [
 "index",
 "index.py",
+".py",
 "index.php",
+".php",
 "index.html",
+".html",
 "index.txt",
+".txt",
 "index.png",
+".png",
 "index.gif",
-"index.jpg"
+".gif",
+"index.jpg",
+".jpg"
 ]
 
 
 def filepicker(filename,fileext):
     for data in fileext:
-        if os.path.exists(filename+data):
+        if not data.startswith("."):
+            file = os.path.join(filename,data)
+        else:
+            file = filename+data
+        if os.path.exists(file):
             try:
-                open(filename+data).read()
-                filename = (filename+data)
+                open(file).read()
+                return(file)
             except Exception,e:
-                filename = (os.path.join(filename,"index"+data))
+                pass
     return(filename)
     
 def create_ssl_cert(cert_dir="."):
@@ -830,7 +841,7 @@ def web_init():
         'tools.decode.on':True,
         'tools.sessions.on':conf["sessions"],
         'tools.sessions.secure':conf["sessions"],
-        'response.timeout': 310
+        'response.timeout': 300
     }}
     application_conf = {
         "/favicon.ico": {
