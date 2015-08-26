@@ -1,4 +1,9 @@
 #!/usr/bin/env python2
+
+# TODO:
+#  - Do input sieve URI rewrites like apache/nginx
+#  - Optimize
+#  - Investigate SSL further and see if we can get an A+ instead of A- on SSL labs
 import cherrypy
 import os
 import sys
