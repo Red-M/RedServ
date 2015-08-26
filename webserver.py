@@ -1,7 +1,6 @@
 #!/usr/bin/env python2
 
 # TODO:
-#  - Do input sieve URI rewrites like apache/nginx
 #  - Optimize
 #  - Investigate SSL further and see if we can get an A+ instead of A- on SSL labs
 import cherrypy
@@ -661,6 +660,7 @@ class WebInterface:
             RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
+        filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
             page = virt_host+"/"+"/".join(list)
             datsieve = ""
@@ -668,6 +668,9 @@ class WebInterface:
             "sievetype":"in",
             "cherrypy": cherrypy,
             "page":page,
+            "URL":page,
+            "URI":"/".join(list),
+            "file_path":filename,
             "this_domain":virt_host,
             "vhost_location":virtloc,
             "data": datsieve,
@@ -693,6 +696,7 @@ class WebInterface:
                 return("404<br>\n"+RedServ.trace_back().replace("\n","<br>\n"))
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
+            filename = sievedata['file_path']
             
             no_serve_message = "404<br>[Errno 2] No such file or directory: '"+"/"+"/".join(list)+"'"
             if page in RedServ.noserving:
@@ -711,7 +715,6 @@ class WebInterface:
             responsecode = 200
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
-            filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
             if len(list)>=2 and str(list[0]).lower()=="static":
                 #cherrypy.response.headers['Cache-Control'] = 'private, max-age=120'
                 if str(list[0])=="static":
