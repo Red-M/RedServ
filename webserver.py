@@ -16,8 +16,6 @@ import socket
 import random
 import subprocess
 import sqlite3
-from mako.template import Template
-from mako.lookup import TemplateLookup
 import ast
 import dircache
 import urllib2
@@ -28,11 +26,17 @@ import inspect
 import cgi
 try:
     import OpenSSL
-    global SSL_imported
     SSL_imported = True
 except Exception,e:
     print("ERROR: Could not load OpenSSL library. Disabling SSL cert generation.")
     SSL_imported = False
+try:
+    from mako.template import Template
+    from mako.lookup import TemplateLookup
+    Mako_imported = True
+except Exception,e:
+    print("ERROR: Could not load Mako library. Disabling Mako template generation.")
+    Mako_imported = False
 try:
     import requests
     global reqcj
@@ -57,7 +61,6 @@ else:
     print("INFO: Bad web server path")
 
 
-global exed
 exed = False
 if current_dir.endswith(".zip"):
     exed = True
@@ -83,8 +86,8 @@ class RedServer(object):
         #self.server2 = cherrypy._cpserver.Server()
         self.http_port = 8080
         self.https_port = 8081
-        
-        self.lookup = self.template_reload(current_dir)
+        if Mako_imported==True:
+            self.lookup = self.template_reload(current_dir)
         os.chdir('.' or sys.path[0])
         self.current_dir = os.path.abspath('.')
 
@@ -197,16 +200,17 @@ class RedServer(object):
         virt_page = domain+"/"+page
         if not virt_page in self.noserving:
             self.noserving.append(virt_page)
-            
-    def template_reload(self, current_dir):
-        lookup = TemplateLookup(directories=[os.path.join(current_dir,'templates')])
-        return lookup
-            
-    def serve_template(self, tmpl, **kwargs):
-        """ loads a template and renders it """
-        lookup = self.template_reload(current_dir)
-        tmpl = lookup.get_template(tmpl)
-        return tmpl.render(**kwargs)
+    
+    if Mako_imported==True:
+        def template_reload(self, current_dir):
+            lookup = TemplateLookup(directories=[os.path.join(current_dir,'templates')])
+            return lookup
+                
+        def serve_template(self, tmpl, **kwargs):
+            """ loads a template and renders it """
+            lookup = self.template_reload(current_dir)
+            tmpl = lookup.get_template(tmpl)
+            return tmpl.render(**kwargs)
         
     def sysinfo(self):
         if os.name=="posix":
@@ -653,8 +657,8 @@ class WebInterface:
         
         if not str(type(site_glo_data[virt_host]["db_conn_loc"]))=="<type 'tuple'>":
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-            
-        RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
+        if Mako_imported==True:
+            RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):

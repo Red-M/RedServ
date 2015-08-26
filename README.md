@@ -7,12 +7,12 @@ Requirements:
 =============
 - Python 2.7+
 - Cherrypy3
-- PyOpenSSL
-- Mako
 - Requests
 
 Optional:
 =========
+- PyOpenSSL
+- Mako
 - PHP5
 
 Installing:
