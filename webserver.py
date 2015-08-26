@@ -74,6 +74,8 @@ class RedServer(object):
         self.basicauthstart = []
         self.basicauthend = []
         
+        #self.server1 = cherrypy._cpserver.Server()
+        #self.server2 = cherrypy._cpserver.Server()
         self.http_port = 8080
         self.https_port = 8081
         
@@ -341,15 +343,15 @@ def filepicker(filename,fileext):
             file = filename+data
         if os.path.exists(file):
             try:
-                open(file).read()
-                return(file)
+                if os.path.isfile(file):
+                    return(file)
             except Exception,e:
                 pass
     return(filename)
     
 def create_ssl_cert(cert_dir="."):
     CERT_FILE = "cert.pem"
-    KEY_FILE = "privkey.pem"
+    KEY_FILE = "privkey.key"
     C_F = os.path.join(cert_dir, CERT_FILE)
     K_F = os.path.join(cert_dir, KEY_FILE)
     return(C_F,K_F)
@@ -402,10 +404,23 @@ def sieve_exec(sievedata,sievecache,sievepath,sievename):
         else:
             sievecache.append(compile(open(sievepath,'r').read(),'<string>','exec'))
             sievecache.append(sievetime)
-        for data in globals():
-            sievedata[data] = globals()[data]
+        sievedata.update(globals())
         exec(sievecache[0],sievedata)
     return(sievedata,sievecache)
+    
+def exec_page_script(filename,datatoreturn,python_page_cache):
+    if not filename in python_page_cache:
+        python_page_cache[filename] = []
+    page_time = os.path.getmtime(filename)
+    if not python_page_cache[filename]==[]:
+        if python_page_cache[filename][1] < page_time:
+            python_page_cache[filename][0] = compile(open(filename,'r').read(),'<string>','exec')
+            python_page_cache[filename][1] = page_time
+    else:
+        python_page_cache[filename].append(compile(open(filename,'r').read(),'<string>','exec'))
+        python_page_cache[filename].append(page_time)
+    exec(python_page_cache[filename][0],datatoreturn)
+    return(datatoreturn)
     
 def vhosts(virt_host):
     lookuptypes = [
@@ -475,9 +490,7 @@ def debughandler(params):
                     debuginfo = "<br>\n<l>"+RedServ.sysinfo()+"</l>"
                 else:
                     debugtable = []
-                    for data in os.uname():
-                        debugtable.append(data)
-                    debuginfo = "<br>\n<l>"+" ".join(debugtable)+"</l>"
+                    debuginfo = "<br>\n<l>"+" ".join(os.uname())+"</l>"
             else:
                 debuginfo = "<br>\n<l>"+RedServ.sysinfo()+"</l>"
             return(debuginfo)
@@ -548,8 +561,18 @@ def conf_reload(conf):
     if not old_time==config_cache[1]:
         new_conf["HTTP"]["enabled"] = old_conf["HTTP"]["enabled"]
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
-        new_conf["HTTP"]["port"] = STDPORT
-        new_conf["HTTPS"]["port"] = SSLPORT
+        if not new_conf["HTTP"]["port"]==old_conf["HTTP"]["port"]:
+            print("Please restart RedServ to change port on HTTP to "+str(new_conf["HTTP"]["port"]))
+            #RedServ.server1.unsubscribe()
+            #RedServ.server1.stop()
+            #RedServ.server1.socket_port=new_conf["HTTP"]["port"]
+            #RedServ.server1.start()
+            #RedServ.server1.subscribe()
+            #print(dir(RedServ.server1))
+        if not new_conf["HTTPS"]["port"]==old_conf["HTTPS"]["port"]:
+            print("Please restart RedServ to change port on HTTPS to "+str(new_conf["HTTPS"]["port"]))
+        #new_conf["HTTP"]["port"] = STDPORT
+        #new_conf["HTTPS"]["port"] = SSLPORT
         if not new_conf["vhosts-enabled"]==old_conf["vhosts-enabled"]:
             if new_conf["vhosts-enabled"]==True:
                 vhoston = "Enabled"
@@ -582,6 +605,7 @@ class WebInterface:
         global cherrypy
         global site_glo_data
         global conf
+        global python_page_cache
         global sieve_cache
         global STDPORT
         global SSLPORT
@@ -591,9 +615,7 @@ class WebInterface:
         RedServ.https_port = SSLPORT
         
         bad = False
-        list = []
-        for data in args:
-            list.append(data)
+        list = args
         paramlines = "?"
         if not params=={}:
             for data in params:
@@ -680,7 +702,7 @@ class WebInterface:
             responsecode = 200
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
-            filename = (virtloc+os.sep.join(list)).replace("..","").replace("//","/")
+            filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
             if len(list)>=2 and str(list[0]).lower()=="static":
                 #cherrypy.response.headers['Cache-Control'] = 'private, max-age=120'
                 if str(list[0])=="static":
@@ -733,7 +755,7 @@ class WebInterface:
             "request":cherrypy.request,
             "filelocation":virtloc+os.sep.join(list),
             "vhost_location":virtloc,
-            "filename":filename.replace(virtloc+os.sep.join(list),""),
+            "filename":filename.strip(virtloc+os.sep.join(list)),
             "this_page":virt_host+"/"+"/".join(list),
             "this_domain":virt_host,
             "global_site_data":site_glo_data,
@@ -745,9 +767,8 @@ class WebInterface:
                 if (filename.endswith(".php")) and (conf["php"]==True):
                     return(PHP(filename))
                 if filename.endswith(".py"):
-                    for data in globals():
-                        datatoreturn[data] = globals()[data]
-                    execfile(filename,datatoreturn)
+                    datatoreturn.update(globals())
+                    datatoreturn = exec_page_script(filename,datatoreturn,python_page_cache)
                 else:
                     datatoreturn["datareturned"] = open(filename, 'r').read()
                     cherrypy.response.status = 200
@@ -765,7 +786,7 @@ class WebInterface:
                     status,error = e
                     cherrypy.response.status = status
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(error)
+                    return(error+debughandler(params))
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
                 trace = "<br>\n".join(ex)
@@ -773,7 +794,7 @@ class WebInterface:
                 datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return(datatoreturn["datareturned"])
+                return(datatoreturn["datareturned"]+debughandler(params))
             try:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
             except Exception,e:
@@ -787,10 +808,10 @@ class WebInterface:
                     status,error = e
                     cherrypy.response.status = status
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(error)
+                    return(error+debughandler(params))
                 cherrypy.response.status = 404
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return("404<br>\n"+RedServ.trace_back().replace("\n","<br>\n"))
+                return("404<br>\n"+RedServ.trace_back().replace("\n","<br>\n")+debughandler(params))
             cj = datatoreturn['cj']
             site_glo_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
@@ -798,14 +819,13 @@ class WebInterface:
             cherrypy.response.status = responsecode
             headers = datatoreturn['headers']
             if not (headers==""):
-                for data in headers:
-                    cherrypy.response.headers[data] = headers[data]
+                cherrypy.response.headers.update(datatoreturn['headers'])
             logging("", 1, [cherrypy,virt_host,list,paramlines])
             if cherrypy.response.headers['Content-Type']=="":
                 cherrypy.response.headers['Content-Type']="charset=utf-8"
             else:
                 cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
-            return(str(datatoreturn["datareturned"]))
+            return(str(datatoreturn["datareturned"])+debughandler(params))
         else:
             logging("", 1, [cherrypy,virt_host,list,paramlines])
             return(str(sievedata["data"]))
@@ -814,16 +834,8 @@ class WebInterface:
     default.exposed = True
         
 
-def web_init():
+def web_init(conf,conflocation):
     print("INFO: Initalising web server...")
-    conflocation = os.path.join(current_dir,"config")
-    config_init(conflocation)
-    global config_cache
-    config_cache = []
-    config_cache.append(json.load(open(conflocation)))
-    config_cache.append(os.path.getmtime(conflocation))
-    global conf
-    conf = config(conflocation)
     global RedServ
     RedServ = RedServer()
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
@@ -865,22 +877,23 @@ def web_init():
         RedServ.server1 = cherrypy._cpserver.Server()
         RedServ.server1.socket_port=SSLPORT
         RedServ.server1._socket_host='0.0.0.0'
-        RedServ.server1.thread_pool=30
+        RedServ.server1.thread_pool=50
         RedServ.server1.thread_pool_max=-1
         RedServ.server1.shutdown_timeout=1
         RedServ.server1.statistics=True
-        RedServ.server1.ssl_module = 'builtin'
+        RedServ.server1.ssl_module = 'custom-pyopenssl'
         RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
-        RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.pem')
-        RedServ.server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
+        RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.key')
+        if os.path.exists(os.path.join(current_dir,'ca.pem')):
+            RedServ.server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
         RedServ.server1.subscribe()
     if conf["HTTP"]["enabled"]==True:
         RedServ.server2 = cherrypy._cpserver.Server()
         RedServ.server2.socket_port=STDPORT
         RedServ.server2._socket_host="0.0.0.0"
-        RedServ.server2.thread_pool=30
+        RedServ.server2.thread_pool=100
         RedServ.server2.thread_pool_max=-1
-        RedServ.server2.shutdown_timeout=5
+        RedServ.server2.shutdown_timeout=1
         RedServ.server2.statistics=True
         RedServ.server2.subscribe()
     
@@ -891,6 +904,9 @@ def web_init():
         port_statuses = port_statuses+"\nHTTPS on port: "+str(RedServ.server1.socket_port)
     RedServ.debugger(3,port_statuses)
     
+    global python_page_cache
+    python_page_cache = {}
+    
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
     global sieve_cache
     sieve_cache = {}
@@ -898,8 +914,8 @@ def web_init():
     if os.path.exists(sievepath):
         sieve_cache["global"].append(compile(open(sievepath,'r').read(),'<string>','exec'))
         sieve_cache["global"].append(os.path.getmtime(sievepath))
-    
-    cherrypy.engine.signals.subscribe()
+    if not os.name=="nt":
+        cherrypy.engine.signals.subscribe()
     cherrypy.engine.start()
     cherrypy.engine.block()
 
@@ -932,5 +948,110 @@ def get_db_connection(name,folders=None):
     if not filename.endswith(".db"):
         filename = filename+".db"
     return sqlite3.connect(filename, timeout=10)
+    
+# Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
+conflocation = os.path.join(current_dir,"config")
+config_init(conflocation)
+config_cache = []
+config_cache.append(json.load(open(conflocation)))
+config_cache.append(os.path.getmtime(conflocation))
+conf = config(conflocation)
 
-web_init()
+# This section of code is to correct SSL issues with Cherrypy until they correct them.
+# This section will be removed later.
+# Author of original code: http://recollection.saaj.me/article/cherrypy-questions-testing-ssl-and-docker.html#experiment
+if conf["HTTPS"]["enabled"]==True:
+    import ssl
+    from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
+    from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
+
+    from cherrypy import wsgiserver
+    if sys.version_info < (3, 0):
+      from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
+    else:
+      from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
+
+    try:
+      from OpenSSL import SSL
+    except ImportError:
+      pass
+
+
+    ciphers = (
+      'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:'
+      'ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
+      'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
+      '!eNULL:!EXPORT:!MD5:!DSS:!3DES:!DES:!RC4:!SSLv2:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:'
+      '!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA:@STRENGTH'
+    )
+
+    class BuiltinSsl(BuiltinSSLAdapter):
+      '''Vulnerable, on py2 < 2.7.9, py3 < 3.3:
+        * POODLE (SSLv3), adding ``!SSLv3`` to cipher list makes it very incompatible
+        * can't disable TLS compression (CRIME)
+        * supports Secure Client-Initiated Renegotiation (DOS)
+        * no Forward Secrecy
+      Also session caching doesn't work. Some tweaks are posslbe, but don't really
+      change much. For example, it's possible to use ssl.PROTOCOL_TLSv1 instead of
+      ssl.PROTOCOL_SSLv23 with little worse compatiblity.
+      '''
+
+      def wrap(self, sock):
+        """Wrap and return the given socket, plus WSGI environ entries."""
+        try:
+          s = ssl.wrap_socket(
+            sock,
+            ciphers = ciphers, # the override is for this line
+            do_handshake_on_connect = True,
+            server_side = True,
+            certfile = self.certificate,
+            keyfile = self.private_key,
+            ssl_version = ssl.PROTOCOL_SSLv23
+          )
+        except ssl.SSLError:
+          e = sys.exc_info()[1]
+          if e.errno == ssl.SSL_ERROR_EOF:
+            # This is almost certainly due to the cherrypy engine
+            # 'pinging' the socket to assert it's connectable;
+            # the 'ping' isn't SSL.
+            return None, {}
+          elif e.errno == ssl.SSL_ERROR_SSL:
+            if e.args[1].endswith('http request'):
+              # The client is speaking HTTP to an HTTPS server.
+              raise wsgiserver.NoSSLError
+            elif e.args[1].endswith('unknown protocol'):
+              # The client is speaking some non-HTTP protocol.
+              # Drop the conn.
+              return None, {}
+          raise
+
+        return s, self.get_environ(s)
+
+    ssl_adapters['custom-ssl'] = BuiltinSsl
+
+
+    class Pyopenssl(pyOpenSSLAdapter):
+      '''Mostly fine, except:
+        * Secure Client-Initiated Renegotiation
+        * no Forward Secrecy, SSL.OP_SINGLE_DH_USE could have helped but it didn't
+      '''
+
+      def get_context(self):
+        """Return an SSL.Context from self attributes."""
+        c = SSL.Context(SSL.SSLv23_METHOD)
+
+        # override:
+        c.set_options(SSL.OP_NO_COMPRESSION | SSL.OP_SINGLE_DH_USE | SSL.OP_NO_SSLv2 | SSL.OP_NO_SSLv3)
+        c.set_cipher_list(ciphers)
+
+        c.use_privatekey_file(self.private_key)
+        if self.certificate_chain:
+            c.load_verify_locations(self.certificate_chain)
+        c.use_certificate_file(self.certificate)
+        return c
+
+    ssl_adapters['custom-pyopenssl'] = Pyopenssl
+# End of SSL fixes
+
+
+web_init(conf,conflocation)
