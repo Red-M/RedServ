@@ -21,17 +21,16 @@ Installing:
 
 2. Install Cherrypy3 (python-cherrypy3)
 
-3. Install mako (python-mako)
+3. Install Requests (python-requests)
 
-4. Install PyOpenSSL (python-openssl)
-
-5. Install Requests (python-requests)
-
-6. git clone https://github.com/Red-M/RedServ.git
+4. git clone https://github.com/Red-M/RedServ.git
 
 Optional Install:
 =================
-- install php5-cli
+- Install PyOpenSSL (python-openssl)
+- Install mako (python-mako)
+- Install php5-cli
+- Install php5-fpm
 
 Running:
 ========
