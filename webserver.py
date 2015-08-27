@@ -654,6 +654,8 @@ class WebInterface:
             db_folders = os.path.join("sites",vhosts(virt_host))
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         
+        if not "db_conn_loc" in site_glo_data[virt_host]:
+            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         if not str(type(site_glo_data[virt_host]["db_conn_loc"]))=="<type 'tuple'>":
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         if Mako_imported==True:
