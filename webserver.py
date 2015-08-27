@@ -655,8 +655,10 @@ class WebInterface:
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         
         if not "db_conn_loc" in site_glo_data[virt_host]:
+            db_folders = os.path.join("sites",vhosts(virt_host))
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
+            db_folders = os.path.join("sites",vhosts(virt_host))
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         if Mako_imported==True:
             RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
