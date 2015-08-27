@@ -1,6 +1,8 @@
 #!/usr/bin/env python2
 
 # TODO:
+#  - Add multiple ports for a single HTTP type (list or string can be put in the config)
+#  - Add custom 404 pages that can be made by the user.
 #  - Optimize
 #  - Investigate SSL further and see if we can get an A+ instead of A- on SSL labs
 import cherrypy
@@ -66,7 +68,7 @@ if current_dir.endswith(".zip"):
 site_glo_data = {}
 
 class RedServer(object):
-    def __init__(self):
+    def __init__(self,mako_templates):
         self.nologging = []
         self.nologgingstart = []
         self.nologgingend = []
@@ -85,7 +87,7 @@ class RedServer(object):
         #self.server2 = cherrypy._cpserver.Server()
         self.http_port = 8080
         self.https_port = 8081
-        if Mako_imported==True:
+        if Mako_imported==True and mako_templates==True:
             self.lookup = self.template_reload(current_dir)
         os.chdir('.' or sys.path[0])
         self.current_dir = os.path.abspath('.')
@@ -287,6 +289,8 @@ def config_init(config_location):
          "vhost-lookup": "domains",
          "sessions": false,
          "php": false,
+         "mako_templates": true,
+         "database_connections": true,
          "log": true
         }''') + '\n')
 
@@ -558,6 +562,14 @@ def logging(logline,logtype,*extra):
             open(logfile,"a").write(logline)
             open(todaylog,"w").write(logline)
             
+def config_print(variable,variable_string,new_conf,old_conf):
+    if not new_conf[variable]==old_conf[variable]:
+        if new_conf[variable]==True:
+            on = "Enabled"
+        else:
+            on = "Disabled"
+        RedServ.debugger(3,variable_string+": "+str(on))
+            
 def conf_reload(conf):
     global STDPORT
     global SSLPORT
@@ -580,24 +592,16 @@ def conf_reload(conf):
             print("Please restart RedServ to change port on HTTPS to "+str(new_conf["HTTPS"]["port"]))
         #new_conf["HTTP"]["port"] = STDPORT
         #new_conf["HTTPS"]["port"] = SSLPORT
-        if not new_conf["vhosts-enabled"]==old_conf["vhosts-enabled"]:
-            if new_conf["vhosts-enabled"]==True:
-                vhoston = "Enabled"
-            else:
-                vhoston = "Disabled"
-            RedServ.debugger(3,"vhosts are now: "+str(vhoston))
-        if not new_conf["php"]==old_conf["php"]:
-            if new_conf["php"]==True:
-                phpon = "Enabled"
-            else:
-                phpon = "Disabled"
-            RedServ.debugger(3,"php is now: "+str(phpon))
-        if not new_conf["log"]==old_conf["log"]:
-            if new_conf["log"]==True:
-                log = "Enabled"
-            else:
-                log = "Disabled"
-            RedServ.debugger(3,"Logging is now "+str(log))
+        conf_vars = {
+                    "default_404":"The default 404 page is now",
+                    "vhosts-enabled":"Vhosts are now",
+                    "php":"PHP is now",
+                    "log":"Logging is now",
+                    "database_connections":"Database connections are now",
+                    "mako_templates":"Mako templates are now"
+                    }
+        for data in conf_vars:
+            config_print(data,conf_vars[data],new_conf,old_conf)
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
     return(new_conf)
@@ -650,16 +654,17 @@ class WebInterface:
         
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
-            db_folders = os.path.join("sites",vhosts(virt_host,conf))
-            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        
-        if not "db_conn_loc" in site_glo_data[virt_host]:
-            db_folders = os.path.join("sites",vhosts(virt_host,conf))
-            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
-            db_folders = os.path.join("sites",vhosts(virt_host,conf))
-            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        if Mako_imported==True:
+            if conf["database_connections"]==True:
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        if conf["database_connections"]==True:
+            if not "db_conn_loc" in site_glo_data[virt_host]:
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+            if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        if Mako_imported==True and conf["mako_templates"]==True:
             RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
@@ -852,7 +857,7 @@ class WebInterface:
 def web_init(conf,conflocation):
     print("INFO: Initialising web server...")
     global RedServ
-    RedServ = RedServer()
+    RedServ = RedServer(conf["mako_templates"])
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
         RedServ.debugger(0,"You need to enable one transfer protocol, either HTTP or HTTPS in the config")
         exit()
