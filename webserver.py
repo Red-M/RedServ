@@ -430,14 +430,13 @@ def exec_page_script(filename,datatoreturn,python_page_cache):
     exec(python_page_cache[filename][0],datatoreturn)
     return(datatoreturn)
     
-def vhosts(virt_host):
+def vhosts(virt_host,conf):
     lookuptypes = [
     "domains",
     "single-hosts",
     "ips",
     "none"
     ]
-    global conf
     config_vhost_lookup = conf["vhost-lookup"].lower()
     hosts = os.listdir(os.path.abspath('pages'))
     if ":" in virt_host:
@@ -641,7 +640,7 @@ class WebInterface:
             
         try:
             if conf["vhosts-enabled"]==True:
-                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
+                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
             else:
                 virtloc = os.path.abspath('pages')+os.sep
         except Exception,e:
@@ -651,21 +650,21 @@ class WebInterface:
         
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
-            db_folders = os.path.join("sites",vhosts(virt_host))
+            db_folders = os.path.join("sites",vhosts(virt_host,conf))
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         
         if not "db_conn_loc" in site_glo_data[virt_host]:
-            db_folders = os.path.join("sites",vhosts(virt_host))
+            db_folders = os.path.join("sites",vhosts(virt_host,conf))
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
-            db_folders = os.path.join("sites",vhosts(virt_host))
+            db_folders = os.path.join("sites",vhosts(virt_host,conf))
             site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         if Mako_imported==True:
             RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
         filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
-        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
+        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")) or os.path.exists(os.path.join(os.path.abspath(virtloc),"sieve.py")):
             page = virt_host+"/"+"/".join(list)
             datsieve = ""
             sievedata = {
@@ -851,7 +850,7 @@ class WebInterface:
         
 
 def web_init(conf,conflocation):
-    print("INFO: Initalising web server...")
+    print("INFO: Initialising web server...")
     global RedServ
     RedServ = RedServer()
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
@@ -859,7 +858,8 @@ def web_init(conf,conflocation):
         exit()
     RedServ.debugger(3,"Hostname: "+RedServ.sysinfo())
     global_conf = {
-        'global': { 'engine.autoreload.on': False,
+        'global': { 
+        'engine.autoreload.on': False,
         'log.error_file': os.path.join('logs','site','site.'+RedServ.sysinfo()+'.log'),
         'log.screen': False,
         'gzipfilter.on':True,
@@ -896,7 +896,7 @@ def web_init(conf,conflocation):
         RedServ.server1.thread_pool=50
         RedServ.server1.thread_pool_max=-1
         RedServ.server1.shutdown_timeout=1
-        RedServ.server1.statistics=True
+        #RedServ.server1.statistics=True
         RedServ.server1.ssl_module = 'custom-pyopenssl'
         RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
         RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.key')
@@ -910,7 +910,7 @@ def web_init(conf,conflocation):
         RedServ.server2.thread_pool=100
         RedServ.server2.thread_pool_max=-1
         RedServ.server2.shutdown_timeout=1
-        RedServ.server2.statistics=True
+        #RedServ.server2.statistics=True
         RedServ.server2.subscribe()
     
     port_statuses = "Web server started"
