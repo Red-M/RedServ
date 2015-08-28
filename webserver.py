@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+#Help from Luke Rogers
 
 # TODO:
 #  - Add multiple ports for a single HTTP type (list or string can be put in the config)
@@ -45,21 +46,17 @@ try:
 except Exception,e:
     print("ERROR: Could not load requests library.")
 from cookielib import CookieJar
-
-global cj
 cj = CookieJar()
 
 os.chdir('.' or sys.path[0])
-global current_dir
-folders = sys.argv[0].split(os.sep)
-proper_path = os.sep.join(folders[0:-1])
-current_dir = os.path.join(os.getcwd(),proper_path)
+current_dir = os.path.join(os.getcwd(),os.sep.join(sys.argv[0].split(os.sep)[0:-1]))
 if current_dir.endswith("."):
     current_dir = current_dir[0:-1]
-if folders[-1] in os.listdir(current_dir):
+if sys.argv[0].split(os.sep)[-1] in os.listdir(current_dir):
     print("INFO: Found webserver path")
 else:
     print("INFO: Bad web server path")
+    exit()
 
 
 exed = False
@@ -68,7 +65,7 @@ if current_dir.endswith(".zip"):
 site_glo_data = {}
 
 class RedServer(object):
-    def __init__(self,mako_templates):
+    def __init__(self):
         self.nologging = []
         self.nologgingstart = []
         self.nologgingend = []
@@ -87,7 +84,7 @@ class RedServer(object):
         #self.server2 = cherrypy._cpserver.Server()
         self.http_port = 8080
         self.https_port = 8081
-        if Mako_imported==True and mako_templates==True:
+        if Mako_imported==True:
             self.lookup = self.template_reload(current_dir)
         os.chdir('.' or sys.path[0])
         self.current_dir = os.path.abspath('.')
@@ -289,8 +286,6 @@ def config_init(config_location):
          "vhost-lookup": "domains",
          "sessions": false,
          "php": false,
-         "mako_templates": true,
-         "database_connections": true,
          "log": true
         }''') + '\n')
 
@@ -433,14 +428,30 @@ def exec_page_script(filename,datatoreturn,python_page_cache):
         python_page_cache[filename].append(page_time)
     exec(python_page_cache[filename][0],datatoreturn)
     return(datatoreturn)
+
+def get_db_connection(name,folders=None):
+    db_loc = os.path.abspath(os.path.join(current_dir,'db'))
+    if folders==None:
+        filename = os.path.join(db_loc,name)
+    else:
+        folder_list = folders.split(os.sep)
+        for data in folder_list:
+            db_loc = os.path.join(db_loc,data)
+            if (not os.path.exists(db_loc)) and (not (len(folder_list)-1)==folder_list.index(data)):
+                os.mkdir(os.path.abspath(db_loc))
+        filename = db_loc
+    if not filename.endswith(".db"):
+        filename = filename+".db"
+    return sqlite3.connect(filename, timeout=10)
     
-def vhosts(virt_host,conf):
+def vhosts(virt_host):
     lookuptypes = [
     "domains",
     "single-hosts",
     "ips",
     "none"
     ]
+    global conf
     config_vhost_lookup = conf["vhost-lookup"].lower()
     hosts = os.listdir(os.path.abspath('pages'))
     if ":" in virt_host:
@@ -562,14 +573,6 @@ def logging(logline,logtype,*extra):
             open(logfile,"a").write(logline)
             open(todaylog,"w").write(logline)
             
-def config_print(variable,variable_string,new_conf,old_conf):
-    if not new_conf[variable]==old_conf[variable]:
-        if new_conf[variable]==True:
-            on = "Enabled"
-        else:
-            on = "Disabled"
-        RedServ.debugger(3,variable_string+": "+str(on))
-            
 def conf_reload(conf):
     global STDPORT
     global SSLPORT
@@ -592,16 +595,24 @@ def conf_reload(conf):
             print("Please restart RedServ to change port on HTTPS to "+str(new_conf["HTTPS"]["port"]))
         #new_conf["HTTP"]["port"] = STDPORT
         #new_conf["HTTPS"]["port"] = SSLPORT
-        conf_vars = {
-                    "default_404":"The default 404 page is now",
-                    "vhosts-enabled":"Vhosts are now",
-                    "php":"PHP is now",
-                    "log":"Logging is now",
-                    "database_connections":"Database connections are now",
-                    "mako_templates":"Mako templates are now"
-                    }
-        for data in conf_vars:
-            config_print(data,conf_vars[data],new_conf,old_conf)
+        if not new_conf["vhosts-enabled"]==old_conf["vhosts-enabled"]:
+            if new_conf["vhosts-enabled"]==True:
+                vhoston = "Enabled"
+            else:
+                vhoston = "Disabled"
+            RedServ.debugger(3,"vhosts are now: "+str(vhoston))
+        if not new_conf["php"]==old_conf["php"]:
+            if new_conf["php"]==True:
+                phpon = "Enabled"
+            else:
+                phpon = "Disabled"
+            RedServ.debugger(3,"php is now: "+str(phpon))
+        if not new_conf["log"]==old_conf["log"]:
+            if new_conf["log"]==True:
+                log = "Enabled"
+            else:
+                log = "Disabled"
+            RedServ.debugger(3,"Logging is now "+str(log))
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
     return(new_conf)
@@ -644,7 +655,7 @@ class WebInterface:
             
         try:
             if conf["vhosts-enabled"]==True:
-                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
+                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
             else:
                 virtloc = os.path.abspath('pages')+os.sep
         except Exception,e:
@@ -654,22 +665,21 @@ class WebInterface:
         
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
-            if conf["database_connections"]==True:
-                db_folders = os.path.join("sites",vhosts(virt_host,conf))
-                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        if conf["database_connections"]==True:
-            if not "db_conn_loc" in site_glo_data[virt_host]:
-                db_folders = os.path.join("sites",vhosts(virt_host,conf))
-                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-            if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
-                db_folders = os.path.join("sites",vhosts(virt_host,conf))
-                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        if Mako_imported==True and conf["mako_templates"]==True:
+            db_folders = os.path.join("sites",vhosts(virt_host))
+            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        
+        if not "db_conn_loc" in site_glo_data[virt_host]:
+            db_folders = os.path.join("sites",vhosts(virt_host))
+            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
+            db_folders = os.path.join("sites",vhosts(virt_host))
+            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        if Mako_imported==True:
             RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
         filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
-        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")) or os.path.exists(os.path.join(os.path.abspath(virtloc),"sieve.py")):
+        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
             page = virt_host+"/"+"/".join(list)
             datsieve = ""
             sievedata = {
@@ -854,17 +864,38 @@ class WebInterface:
     default.exposed = True
         
 
-def web_init(conf,conflocation):
-    print("INFO: Initialising web server...")
+def web_init():
+    print("INFO: Initalising web server...")
+    db_loc = os.path.abspath('db')
+    pathing = [
+    "db",
+    "logs",
+    os.path.join("logs","site"),
+    "pages",
+    "static",
+    "util",
+    "templates"
+    ]
+    for data in pathing:
+        if not os.path.exists(os.path.abspath(data)):
+            os.mkdir(os.path.abspath(data))
     global RedServ
-    RedServ = RedServer(conf["mako_templates"])
+    RedServ = RedServer()
+    # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
+    conflocation = os.path.join(current_dir,"config")
+    config_init(conflocation)
+    global config_cache
+    config_cache = []
+    config_cache.append(json.load(open(conflocation)))
+    config_cache.append(os.path.getmtime(conflocation))
+    global conf
+    conf = config(conflocation)
     if conf["HTTPS"]["enabled"]==False and conf["HTTP"]["enabled"]==False:
         RedServ.debugger(0,"You need to enable one transfer protocol, either HTTP or HTTPS in the config")
         exit()
     RedServ.debugger(3,"Hostname: "+RedServ.sysinfo())
     global_conf = {
-        'global': { 
-        'engine.autoreload.on': False,
+        'global': { 'engine.autoreload.on': False,
         'log.error_file': os.path.join('logs','site','site.'+RedServ.sysinfo()+'.log'),
         'log.screen': False,
         'gzipfilter.on':True,
@@ -894,6 +925,13 @@ def web_init(conf,conflocation):
     global SSLPORT
     SSLPORT = conf["HTTPS"]["port"]
     if conf["HTTPS"]["enabled"]==True:
+        if sys.version_info < (3, 0):
+          from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
+        else:
+          from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
+        from util import ssl_fix
+        ssl_adapters = ssl_fix.fix(ssl_adapters)
+    if conf["HTTPS"]["enabled"]==True:
         SSL_cert_gen(RedServ.sysinfo())
         RedServ.server1 = cherrypy._cpserver.Server()
         RedServ.server1.socket_port=SSLPORT
@@ -901,7 +939,7 @@ def web_init(conf,conflocation):
         RedServ.server1.thread_pool=50
         RedServ.server1.thread_pool_max=-1
         RedServ.server1.shutdown_timeout=1
-        #RedServ.server1.statistics=True
+        RedServ.server1.statistics=True
         RedServ.server1.ssl_module = 'custom-pyopenssl'
         RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
         RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.key')
@@ -915,7 +953,7 @@ def web_init(conf,conflocation):
         RedServ.server2.thread_pool=100
         RedServ.server2.thread_pool_max=-1
         RedServ.server2.shutdown_timeout=1
-        #RedServ.server2.statistics=True
+        RedServ.server2.statistics=True
         RedServ.server2.subscribe()
     
     port_statuses = "Web server started"
@@ -940,139 +978,7 @@ def web_init(conf,conflocation):
     cherrypy.engine.start()
     cherrypy.engine.block()
 
-os.chdir(current_dir)
-db_loc = os.path.abspath('db')
-pathing = [
-"db",
-"logs",
-os.path.join("logs","site"),
-"pages",
-"static",
-"templates"
-]
-for data in pathing:
-    if not os.path.exists(os.path.abspath(data)):
-        os.mkdir(os.path.abspath(data))
 
-global get_db_connection
-def get_db_connection(name,folders=None):
-    db_loc = os.path.abspath(os.path.join(current_dir,'db'))
-    if folders==None:
-        filename = os.path.join(db_loc,name)
-    else:
-        folder_list = folders.split(os.sep)
-        for data in folder_list:
-            db_loc = os.path.join(db_loc,data)
-            if (not os.path.exists(db_loc)) and (not (len(folder_list)-1)==folder_list.index(data)):
-                os.mkdir(os.path.abspath(db_loc))
-        filename = db_loc
-    if not filename.endswith(".db"):
-        filename = filename+".db"
-    return sqlite3.connect(filename, timeout=10)
     
-# Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
-conflocation = os.path.join(current_dir,"config")
-config_init(conflocation)
-config_cache = []
-config_cache.append(json.load(open(conflocation)))
-config_cache.append(os.path.getmtime(conflocation))
-conf = config(conflocation)
-
-# This section of code is to correct SSL issues with Cherrypy until they correct them.
-# This section will be removed later.
-# Author of original code: http://recollection.saaj.me/article/cherrypy-questions-testing-ssl-and-docker.html#experiment
-if conf["HTTPS"]["enabled"]==True:
-    import ssl
-    from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
-    from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
-
-    from cherrypy import wsgiserver
-    if sys.version_info < (3, 0):
-      from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
-    else:
-      from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
-
-    try:
-      from OpenSSL import SSL
-    except ImportError:
-      pass
-
-
-    ciphers = (
-      'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:'
-      'ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
-      'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
-      '!eNULL:!EXPORT:!MD5:!DSS:!3DES:!DES:!RC4:!SSLv2:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:'
-      '!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA:@STRENGTH'
-    )
-
-    class BuiltinSsl(BuiltinSSLAdapter):
-      '''Vulnerable, on py2 < 2.7.9, py3 < 3.3:
-        * POODLE (SSLv3), adding ``!SSLv3`` to cipher list makes it very incompatible
-        * can't disable TLS compression (CRIME)
-        * supports Secure Client-Initiated Renegotiation (DOS)
-        * no Forward Secrecy
-      Also session caching doesn't work. Some tweaks are posslbe, but don't really
-      change much. For example, it's possible to use ssl.PROTOCOL_TLSv1 instead of
-      ssl.PROTOCOL_SSLv23 with little worse compatiblity.
-      '''
-
-      def wrap(self, sock):
-        """Wrap and return the given socket, plus WSGI environ entries."""
-        try:
-          s = ssl.wrap_socket(
-            sock,
-            ciphers = ciphers, # the override is for this line
-            do_handshake_on_connect = True,
-            server_side = True,
-            certfile = self.certificate,
-            keyfile = self.private_key,
-            ssl_version = ssl.PROTOCOL_SSLv23
-          )
-        except ssl.SSLError:
-          e = sys.exc_info()[1]
-          if e.errno == ssl.SSL_ERROR_EOF:
-            # This is almost certainly due to the cherrypy engine
-            # 'pinging' the socket to assert it's connectable;
-            # the 'ping' isn't SSL.
-            return None, {}
-          elif e.errno == ssl.SSL_ERROR_SSL:
-            if e.args[1].endswith('http request'):
-              # The client is speaking HTTP to an HTTPS server.
-              raise wsgiserver.NoSSLError
-            elif e.args[1].endswith('unknown protocol'):
-              # The client is speaking some non-HTTP protocol.
-              # Drop the conn.
-              return None, {}
-          raise
-
-        return s, self.get_environ(s)
-
-    ssl_adapters['custom-ssl'] = BuiltinSsl
-
-
-    class Pyopenssl(pyOpenSSLAdapter):
-      '''Mostly fine, except:
-        * Secure Client-Initiated Renegotiation
-        * no Forward Secrecy, SSL.OP_SINGLE_DH_USE could have helped but it didn't
-      '''
-
-      def get_context(self):
-        """Return an SSL.Context from self attributes."""
-        c = SSL.Context(SSL.SSLv23_METHOD)
-
-        # override:
-        c.set_options(SSL.OP_NO_COMPRESSION | SSL.OP_SINGLE_DH_USE | SSL.OP_NO_SSLv2 | SSL.OP_NO_SSLv3)
-        c.set_cipher_list(ciphers)
-
-        c.use_privatekey_file(self.private_key)
-        if self.certificate_chain:
-            c.load_verify_locations(self.certificate_chain)
-        c.use_certificate_file(self.certificate)
-        return c
-
-    ssl_adapters['custom-pyopenssl'] = Pyopenssl
-# End of SSL fixes
-
-
-web_init(conf,conflocation)
+os.chdir(current_dir)
+web_init()
