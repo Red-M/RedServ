@@ -357,7 +357,7 @@ def filepicker(filename,fileext):
     return(filename)
     
 def create_ssl_cert(cert_dir="."):
-    CERT_FILE = "cert.pem"
+    CERT_FILE = "cert.crt"
     KEY_FILE = "privkey.key"
     C_F = os.path.join(cert_dir, CERT_FILE)
     K_F = os.path.join(cert_dir, KEY_FILE)
@@ -373,8 +373,8 @@ def SSL_cert_gen(nodename):
             cert.get_subject().C = "na"
             cert.get_subject().ST = "n/a"
             cert.get_subject().L = "n/a"
-            cert.get_subject().O = "n/a"
-            cert.get_subject().OU = "n/a "+str(time.time())
+            cert.get_subject().O = "RedServ"
+            cert.get_subject().OU = "RedServ Test Cert "+str(time.time())
             cert.get_subject().CN = nodename
             cert.set_serial_number(1000)
             cert.gmtime_adj_notBefore(0)
@@ -865,7 +865,8 @@ class WebInterface:
         
 
 def web_init():
-    print("INFO: Initalising web server...")
+    print("INFO: Initialising web server...")
+    os.chdir(current_dir)
     db_loc = os.path.abspath('db')
     pathing = [
     "db",
@@ -941,7 +942,7 @@ def web_init():
         RedServ.server1.shutdown_timeout=1
         RedServ.server1.statistics=True
         RedServ.server1.ssl_module = 'custom-pyopenssl'
-        RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.pem')
+        RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.crt')
         RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.key')
         if os.path.exists(os.path.join(current_dir,'ca.pem')):
             RedServ.server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
@@ -979,6 +980,5 @@ def web_init():
     cherrypy.engine.block()
 
 
-    
-os.chdir(current_dir)
+
 web_init()
