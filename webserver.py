@@ -274,10 +274,12 @@ def config_init(config_location):
         open(config_location, 'w').write(inspect.cleandoc(
         r'''{
          "HTTP":{
-         "enabled": true,
-         "port": 8080
+            "reverse_proxied": false,
+            "enabled": true,
+            "port": 8080
          },
          "HTTPS":{
+            "reverse_proxied": false,
             "enabled": false,
             "port": 8081
          },
@@ -646,6 +648,12 @@ class WebInterface:
             paramlines = paramlines[:-1]
         if paramlines=="?":
             paramlines = ""
+        if cherrypy.request.local.port==STDPORT:
+            if conf["HTTP"]["reverse_proxied"]==True:
+                cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
+        if cherrypy.request.local.port==SSLPORT:
+            if conf["HTTPS"]["reverse_proxied"]==True:
+                cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
         if "host" in cherrypy.request.headers:
             virt_host = cherrypy.request.headers["host"]
         else:
