@@ -575,6 +575,22 @@ def logging(logline,logtype,*extra):
             open(logfile,"a").write(logline)
             open(todaylog,"w").write(logline)
             
+def conf_update_print(new_conf,old_conf):
+    options = {
+            "vhosts-enabled":"Virtual hosts are now",
+            "php":"PHP is now",
+            "log":"Logging is now",
+            "database_connections":"Database connections are now",
+            "mako_templates":"Mako templates are now"
+    }
+    for data in options:
+        if not new_conf[data]==old_conf[data]:
+            if new_conf[data]==True:
+                on = "enabled."
+            else:
+                on = "disabled."
+            RedServ.debugger(3,options[data]+" "+str(on))
+            
 def conf_reload(conf):
     global STDPORT
     global SSLPORT
@@ -597,26 +613,9 @@ def conf_reload(conf):
             print("Please restart RedServ to change port on HTTPS to "+str(new_conf["HTTPS"]["port"]))
         #new_conf["HTTP"]["port"] = STDPORT
         #new_conf["HTTPS"]["port"] = SSLPORT
-        if not new_conf["vhosts-enabled"]==old_conf["vhosts-enabled"]:
-            if new_conf["vhosts-enabled"]==True:
-                vhoston = "Enabled"
-            else:
-                vhoston = "Disabled"
-            RedServ.debugger(3,"vhosts are now: "+str(vhoston))
-        if not new_conf["php"]==old_conf["php"]:
-            if new_conf["php"]==True:
-                phpon = "Enabled"
-            else:
-                phpon = "Disabled"
-            RedServ.debugger(3,"php is now: "+str(phpon))
-        if not new_conf["log"]==old_conf["log"]:
-            if new_conf["log"]==True:
-                log = "Enabled"
-            else:
-                log = "Disabled"
-            RedServ.debugger(3,"Logging is now "+str(log))
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
+        conf_update_print(new_conf,old_conf)
     return(new_conf)
 
 
@@ -673,16 +672,18 @@ class WebInterface:
         
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
-            db_folders = os.path.join("sites",vhosts(virt_host))
-            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+            if conf["database_connections"]==True:
+                db_folders = os.path.join("sites",vhosts(virt_host))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         
-        if not "db_conn_loc" in site_glo_data[virt_host]:
-            db_folders = os.path.join("sites",vhosts(virt_host))
-            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
-            db_folders = os.path.join("sites",vhosts(virt_host))
-            site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        if Mako_imported==True:
+        if conf["database_connections"]==True:
+            if not "db_conn_loc" in site_glo_data[virt_host]:
+                db_folders = os.path.join("sites",vhosts(virt_host))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+            if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
+                db_folders = os.path.join("sites",vhosts(virt_host))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        if Mako_imported==True and conf["mako_templates"]==True:
             RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
@@ -985,6 +986,7 @@ def web_init():
     if not os.name=="nt":
         cherrypy.engine.signals.subscribe()
     cherrypy.engine.start()
+    RedServ.debugger(3,"Web server started!") # yay!
     cherrypy.engine.block()
 
 
