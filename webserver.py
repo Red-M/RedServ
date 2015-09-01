@@ -288,6 +288,8 @@ def config_init(config_location):
          "vhost-lookup": "domains",
          "sessions": false,
          "php": false,
+         "database_connections": false,
+         "mako_templates": false,
          "log": true
         }''') + '\n')
 
@@ -446,14 +448,13 @@ def get_db_connection(name,folders=None):
         filename = filename+".db"
     return sqlite3.connect(filename, timeout=10)
     
-def vhosts(virt_host):
+def vhosts(virt_host,conf):
     lookuptypes = [
     "domains",
     "single-hosts",
     "ips",
     "none"
     ]
-    global conf
     config_vhost_lookup = conf["vhost-lookup"].lower()
     hosts = os.listdir(os.path.abspath('pages'))
     if ":" in virt_host:
@@ -662,7 +663,7 @@ class WebInterface:
             
         try:
             if conf["vhosts-enabled"]==True:
-                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host))+os.sep
+                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
             else:
                 virtloc = os.path.abspath('pages')+os.sep
         except Exception,e:
@@ -673,15 +674,15 @@ class WebInterface:
         if not virt_host in site_glo_data:
             site_glo_data[virt_host] = {}
             if conf["database_connections"]==True:
-                db_folders = os.path.join("sites",vhosts(virt_host))
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
                 site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         
         if conf["database_connections"]==True:
             if not "db_conn_loc" in site_glo_data[virt_host]:
-                db_folders = os.path.join("sites",vhosts(virt_host))
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
                 site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
             if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
-                db_folders = os.path.join("sites",vhosts(virt_host))
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
                 site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         if Mako_imported==True and conf["mako_templates"]==True:
             RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
