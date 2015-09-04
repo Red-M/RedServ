@@ -103,13 +103,15 @@ class RedServer(object):
         #add reserv based message saying to use https here.
             
     
-    def trace_back(self):
+    def trace_back(self,html=True):
         type_, value_, traceback_ = sys.exc_info()
         ex = traceback.format_exception(type_, value_, traceback_)
         trace = ""
         for data in ex:
             trace = str(trace+data)
-        trace = cgi.escape(trace).encode('utf-8', 'xmlcharrefreplace').replace("\n","<br>")
+        trace = cgi.escape(trace).encode('utf-8', 'xmlcharrefreplace')
+        if html==True:
+            trace = trace.replace("\n","<br>")
         return(trace)
         
     def TCP_dict_client(self, ip, port, message):
@@ -721,7 +723,8 @@ class WebInterface:
                     return(error)
                 cherrypy.response.status = 404
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return("404<br>\n"+RedServ.trace_back().replace("\n","<br>\n"))
+                cherrypy.response.headers["content-type"] = "text/plain"
+                return("404\n"+RedServ.trace_back(False))
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
@@ -829,11 +832,12 @@ class WebInterface:
                     return(error+debughandler(params))
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
-                trace = "<br>\n".join(ex)
+                trace = "\n".join(ex)
                 cherrypy.response.status = 404
-                datatoreturn["datareturned"] = "404<br>"+str(trace).replace(virtloc,"/")
+                datatoreturn["datareturned"] = "404\n"+str(trace).replace(virtloc,"/")
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
+                cherrypy.response.headers["content-type"] = "text/plain"
                 return(datatoreturn["datareturned"]+debughandler(params))
             try:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
@@ -851,7 +855,8 @@ class WebInterface:
                     return(error+debughandler(params))
                 cherrypy.response.status = 404
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return("404<br>\n"+RedServ.trace_back().replace("\n","<br>\n")+debughandler(params))
+                cherrypy.response.headers["content-type"] = "text/plain"
+                return("404\n"+RedServ.trace_back(False)+debughandler(params))
             cj = datatoreturn['cj']
             site_glo_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
