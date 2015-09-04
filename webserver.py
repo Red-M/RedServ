@@ -915,7 +915,8 @@ def web_init():
         'tools.encode.on':True,
         'tools.decode.on':True,
         'tools.sessions.on':conf["sessions"],
-        'tools.sessions.secure':conf["sessions"],
+        'tools.sessions.locking':'explicit',
+        #'tools.sessions.secure':conf["sessions"],
         'response.timeout': 300
     }}
     application_conf = {
