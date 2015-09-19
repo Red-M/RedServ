@@ -412,10 +412,10 @@ def sieve_exec(sievedata,sievecache,sievepath,sievename):
             RedServ.noserve(sievedata["this_domain"],"sieve.py")
         if not sievecache==[]:
             if sievecache[1] < sievetime:
-                sievecache[0] = compile(open(sievepath,'r').read(),'<string>','exec')
+                sievecache[0] = compile(open(sievepath,'r').read(),sievepath,'exec')
                 sievecache[1] = sievetime
         else:
-            sievecache.append(compile(open(sievepath,'r').read(),'<string>','exec'))
+            sievecache.append(compile(open(sievepath,'r').read(),sievepath,'exec'))
             sievecache.append(sievetime)
         sievedata.update(globals())
         exec(sievecache[0],sievedata)
@@ -988,7 +988,7 @@ def web_init():
     sieve_cache = {}
     sieve_cache["global"] = []
     if os.path.exists(sievepath):
-        sieve_cache["global"].append(compile(open(sievepath,'r').read(),'<string>','exec'))
+        sieve_cache["global"].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
         sieve_cache["global"].append(os.path.getmtime(sievepath))
     if not os.name=="nt":
         cherrypy.engine.signals.subscribe()
