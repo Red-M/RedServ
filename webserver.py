@@ -427,10 +427,10 @@ def exec_page_script(filename,datatoreturn,python_page_cache):
     page_time = os.path.getmtime(filename)
     if not python_page_cache[filename]==[]:
         if python_page_cache[filename][1] < page_time:
-            python_page_cache[filename][0] = compile(open(filename,'r').read(),'<string>','exec')
+            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
             python_page_cache[filename][1] = page_time
     else:
-        python_page_cache[filename].append(compile(open(filename,'r').read(),'<string>','exec'))
+        python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
         python_page_cache[filename].append(page_time)
     exec(python_page_cache[filename][0],datatoreturn)
     return(datatoreturn)
