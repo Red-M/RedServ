@@ -645,7 +645,11 @@ class WebInterface:
         paramlines = "?"
         if not params=={}:
             for data in params:
-                params[data] = str(params[data]).replace("\n","\\n").replace("\r","\\r")
+                if isinstance(params[data],type([])):
+                    for list_data in params[data]:
+                        params[data][list_data] = params[data][list_data].replace("\n","\\n").replace("\r","\\r")
+                else:
+                    params[data] = str(params[data]).replace("\n","\\n").replace("\r","\\r")
                 paramlines = paramlines+data+"="+params[data]+"&"
             paramlines = paramlines[:-1]
         if paramlines=="?":
