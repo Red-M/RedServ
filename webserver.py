@@ -642,8 +642,9 @@ class WebInterface:
         
         bad = False
         list = args
-        paramlines = "?"
+        paramlines = ""
         if not params=={}:
+            paramlines = "?"
             for data in params:
                 if isinstance(params[data],type([])):
                     for list_data in params[data]:
@@ -652,8 +653,6 @@ class WebInterface:
                     params[data] = str(params[data]).replace("\n","\\n").replace("\r","\\r")
                 paramlines = paramlines+data+"="+params[data]+"&"
             paramlines = paramlines[:-1]
-        if paramlines=="?":
-            paramlines = ""
         if cherrypy.request.local.port==STDPORT:
             if conf["HTTP"]["reverse_proxied"]==True:
                 cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
@@ -723,6 +722,7 @@ class WebInterface:
                 if type(e)==type(cherrypy.HTTPError(404)):
                     status,error = e
                     cherrypy.response.status = status
+                    cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(error)
                 cherrypy.response.status = 404
@@ -783,11 +783,10 @@ class WebInterface:
             if not bang=="":
                 try:
                     filename = filepicker(filename,folderext)
-                    open(filename, 'r').read()
+                    open(filename, 'r')
                 except Exception,e:
-                    if str(e).startswith("[Errno 21]"):
-                        logging("", 1, [cherrypy,virt_host,list,paramlines])
-                        return(notfound2(cherrypy,e,virtloc,params))
+                    logging("", 1, [cherrypy,virt_host,list,paramlines])
+                    return(notfound2(cherrypy,e,virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
                 typedat = mimetypes.guess_type(filename)
                 if not typedat==(None,None):
