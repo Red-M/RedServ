@@ -19,7 +19,6 @@ import random
 import subprocess
 import sqlite3
 import ast
-import dircache
 import urllib2
 import urllib
 import re
@@ -959,7 +958,7 @@ def web_init():
         RedServ.server1.thread_pool=50
         RedServ.server1.thread_pool_max=-1
         RedServ.server1.shutdown_timeout=1
-        RedServ.server1.statistics=True
+        #RedServ.server1.statistics=True
         RedServ.server1.ssl_module = 'custom-pyopenssl'
         RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.crt')
         RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.key')
@@ -973,10 +972,10 @@ def web_init():
         RedServ.server2.thread_pool=100
         RedServ.server2.thread_pool_max=-1
         RedServ.server2.shutdown_timeout=1
-        RedServ.server2.statistics=True
+        #RedServ.server2.statistics=True
         RedServ.server2.subscribe()
     
-    port_statuses = "Web server started"
+    port_statuses = "Web server starting up:"
     if conf["HTTP"]["enabled"]==True:
         port_statuses = port_statuses+"\nHTTP on port: "+str(RedServ.server2.socket_port)
     if conf["HTTPS"]["enabled"]==True:
@@ -996,7 +995,7 @@ def web_init():
     if not os.name=="nt":
         cherrypy.engine.signals.subscribe()
     cherrypy.engine.start()
-    RedServ.debugger(3,"Web server started!") # yay!
+    RedServ.debugger(3,"Web server init finished\nYou are free for take off!") # yay!
     cherrypy.engine.block()
 
 
