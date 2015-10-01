@@ -883,6 +883,8 @@ class WebInterface:
 
 def web_init():
     print("INFO: Initialising web server...")
+    from cherrypy._cpnative_server import CPHTTPServer
+    cherrypy.server.httpserver = CPHTTPServer(cherrypy.server)
     os.chdir(current_dir)
     db_loc = os.path.abspath('db')
     pathing = [
