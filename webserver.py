@@ -924,7 +924,9 @@ def web_init():
         'tools.sessions.on':conf["sessions"],
         'tools.sessions.locking':'explicit',
         #'tools.sessions.secure':conf["sessions"],
-        'response.timeout': 300
+        'response.timeout': 300,
+        'engine.timeout_monitor.on':True,
+        'engine.timeout_monitor.frequency':60
     }}
     application_conf = {
         "/favicon.ico": {
