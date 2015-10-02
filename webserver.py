@@ -799,7 +799,7 @@ class WebInterface:
             "headers":headers,
             "response":responsecode,
             "request":cherrypy.request,
-            "filelocation":virtloc+os.sep.join(list),
+            "filelocation":filename,
             "vhost_location":virtloc,
             "filename":filename.strip(virtloc+os.sep.join(list)),
             "this_page":virt_host+"/"+"/".join(list),
