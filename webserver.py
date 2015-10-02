@@ -731,6 +731,7 @@ class WebInterface:
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
+            list = sievedata['URI'].split("/")
             
             no_serve_message = "404<br>[Errno 2] No such file or directory: '"+"/"+"/".join(list)+"'"
             if page in RedServ.noserving:
