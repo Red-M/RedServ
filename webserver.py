@@ -623,14 +623,14 @@ def conf_reload(conf):
 def http_response(datatoreturn,params,virt_host,list,paramlines):
     if isinstance(datatoreturn["datareturned"],type("")):
         return(datatoreturn["datareturned"]+debughandler(params))
-    if isinstance(e,type(RedServ.staticfileserve(""))):
-        return(e.value)
-    if isinstance(e,type(cherrypy.HTTPRedirect(""))):
-        (https_redirect_str,cherrypy.response.status) = e
+    if isinstance(datatoreturn["datareturned"],type(RedServ.staticfileserve(""))):
+        return(datatoreturn["datareturned"].value)
+    if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPRedirect(""))):
+        (https_redirect_str,cherrypy.response.status) = datatoreturn["datareturned"]
         logging("", 1, [cherrypy,virt_host,list,paramlines])
-        raise(e)
-    if isinstance(e,type(cherrypy.HTTPError(404))):
-        status,error = e
+        raise(datatoreturn["datareturned"])
+    if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPError(404))):
+        status,error = datatoreturn["datareturned"]
         cherrypy.response.status = status
         cherrypy.response.headers["content-type"] = "text/plain"
         logging("", 1, [cherrypy,virt_host,list,paramlines])
