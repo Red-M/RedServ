@@ -9,8 +9,8 @@
 import cherrypy
 import os
 import sys
-reload(sys)
-sys.setdefaultencoding('UTF8')
+#reload(sys)
+#sys.setdefaultencoding('UTF8')
 import time
 import json
 import mimetypes
@@ -989,11 +989,11 @@ def web_init():
     SSLPORT = conf["HTTPS"]["port"]
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if sys.version_info < (3, 0):
-          from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
+            from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
+            from util import ssl_fix
+            ssl_adapters = ssl_fix.fix(ssl_adapters)
         else:
-          from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
-        from util import ssl_fix
-        ssl_adapters = ssl_fix.fix(ssl_adapters)
+            from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         SSL_cert_gen(RedServ.sysinfo())
         RedServ.server1 = cherrypy._cpserver.Server()
