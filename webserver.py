@@ -988,14 +988,14 @@ def web_init():
     STDPORT = conf["HTTP"]["port"]
     global SSLPORT
     SSLPORT = conf["HTTPS"]["port"]
-    if conf["HTTPS"]["enabled"]==True:
+    if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if sys.version_info < (3, 0):
           from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
         else:
           from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
         from util import ssl_fix
         ssl_adapters = ssl_fix.fix(ssl_adapters)
-    if conf["HTTPS"]["enabled"]==True:
+    if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         SSL_cert_gen(RedServ.sysinfo())
         RedServ.server1 = cherrypy._cpserver.Server()
         RedServ.server1.socket_port=SSLPORT
@@ -1023,7 +1023,7 @@ def web_init():
     port_statuses = "Web server starting up:"
     if conf["HTTP"]["enabled"]==True:
         port_statuses = port_statuses+"\nHTTP on port: "+str(RedServ.server2.socket_port)
-    if conf["HTTPS"]["enabled"]==True:
+    if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         port_statuses = port_statuses+"\nHTTPS on port: "+str(RedServ.server1.socket_port)
     RedServ.debugger(3,port_statuses)
     
