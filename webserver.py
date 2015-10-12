@@ -277,11 +277,15 @@ def config_init(config_location):
          "HTTP":{
             "reverse_proxied": false,
             "enabled": true,
+            "thread_threads": 100,
+            "socket_queue": 100,
             "port": 8080
          },
          "HTTPS":{
             "reverse_proxied": false,
             "enabled": false,
+            "thread_threads": 50,
+            "socket_queue": 50,
             "port": 8081
          },
          "default_404": true,
@@ -658,16 +662,8 @@ class WebInterface:
         bad = False
         list = args
         paramlines = ""
-        if not params=={}:
-            paramlines = "?"
-            for data in params:
-                if isinstance(params[data],type([])):
-                    for list_data in params[data]:
-                        params[data][list_data] = params[data][list_data].replace("\n","\\n").replace("\r","\\r")
-                else:
-                    params[data] = str(params[data]).replace("\n","\\n").replace("\r","\\r")
-                paramlines = paramlines+data+"="+params[data]+"&"
-            paramlines = paramlines[:-1]
+        if len(params)>0:
+            paramlines = "?"+cherrypy.request.query_string
         if cherrypy.request.local.port==STDPORT:
             if conf["HTTP"]["reverse_proxied"]==True:
                 cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
@@ -1000,8 +996,8 @@ def web_init():
         RedServ.server1 = cherrypy._cpserver.Server()
         RedServ.server1.socket_port=SSLPORT
         RedServ.server1._socket_host='0.0.0.0'
-        RedServ.server1.thread_pool=50
-        RedServ.server1.socket_queue_size=50
+        RedServ.server1.thread_pool=conf["HTTPS"]["thread_pool"]
+        RedServ.server1.socket_queue_size=conf["HTTPS"]["socket_queue"]
         RedServ.server1.thread_pool_max=-1
         RedServ.server1.shutdown_timeout=1
         RedServ.server1.socket_timeout=3
@@ -1016,8 +1012,8 @@ def web_init():
         RedServ.server2 = cherrypy._cpserver.Server()
         RedServ.server2.socket_port=STDPORT
         RedServ.server2._socket_host="0.0.0.0"
-        RedServ.server2.thread_pool=100
-        RedServ.server2.socket_queue_size=100
+        RedServ.server2.thread_pool=conf["HTTPS"]["thread_pool"]
+        RedServ.server2.socket_queue_size=conf["HTTP"]["socket_queue"]
         RedServ.server2.thread_pool_max=-1
         RedServ.server2.shutdown_timeout=1
         RedServ.server2.socket_timeout=3
