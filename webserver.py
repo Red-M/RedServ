@@ -1001,9 +1001,9 @@ def web_init():
         RedServ.server1.socket_port=SSLPORT
         RedServ.server1._socket_host='0.0.0.0'
         RedServ.server1.thread_pool=50
+        RedServ.server1.socket_queue_size=50
         RedServ.server1.thread_pool_max=-1
         RedServ.server1.shutdown_timeout=1
-        RedServ.server1.socket_queue_size=50
         RedServ.server1.socket_timeout=3
         #RedServ.server1.statistics=True
         RedServ.server1.ssl_module = 'custom-pyopenssl'
@@ -1017,9 +1017,9 @@ def web_init():
         RedServ.server2.socket_port=STDPORT
         RedServ.server2._socket_host="0.0.0.0"
         RedServ.server2.thread_pool=100
+        RedServ.server2.socket_queue_size=100
         RedServ.server2.thread_pool_max=-1
         RedServ.server2.shutdown_timeout=1
-        RedServ.server2.socket_queue_size=50
         RedServ.server2.socket_timeout=3
         #RedServ.server2.statistics=True
         RedServ.server2.subscribe()
