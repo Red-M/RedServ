@@ -640,6 +640,27 @@ def http_response(datatoreturn,params,virt_host,list,paramlines):
         logging("", 1, [cherrypy,virt_host,list,paramlines])
         return(error+debughandler(params))
     return(datatoreturn["datareturned"])
+    
+def page_error_handler(e,cherrypy,virt_host,list,paramlines,exception=True):
+    if isinstance(e,type(RedServ.staticfileserve(""))):
+        return(e.value,cherrypy)
+    if isinstance(e,type(cherrypy.HTTPRedirect(""))):
+        (https_redirect_str,cherrypy.response.status) = e
+        logging("", 1, [cherrypy,virt_host,list,paramlines])
+        raise(e)
+    if isinstance(e,type(cherrypy.HTTPError(404))):
+        status,error = e
+        cherrypy.response.status = status
+        cherrypy.response.headers["content-type"] = "text/plain"
+        logging("", 1, [cherrypy,virt_host,list,paramlines])
+        return(error+debughandler(params),cherrypy)
+    if exception==True:
+        cherrypy.response.status = 404
+        logging("", 1, [cherrypy,virt_host,list,paramlines])
+        cherrypy.response.headers["content-type"] = "text/plain"
+        return("404\n"+RedServ.trace_back(False),cherrypy)
+    else:
+        return(e,cherrypy)
 
 class WebInterface:
     """ main web interface class """
@@ -662,21 +683,24 @@ class WebInterface:
         bad = False
         list = args
         paramlines = ""
+        rproxied_test = "X-Forwarded-Host" in cherrypy.request.headers and ((cherrypy.request.local.port==STDPORT and conf["HTTP"]["reverse_proxied"]==True) or (cherrypy.request.local.port==SSLPORT and conf["HTTPS"]["reverse_proxied"]==True))
         if len(params)>0:
             paramlines = "?"+cherrypy.request.query_string
+        if "host" in cherrypy.request.headers or rproxied_test==True:
+            if "host" in cherrypy.request.headers:
+                virt_host = cherrypy.request.headers["host"]
+            if rproxied_test==True:
+                virt_host = cherrypy.request.headers["X-Forwarded-Host"]
+        else:
+            cherrypy.response.status = 404
+            logging("", 1, [cherrypy,"No host header",list,paramlines])
+            return("")
         if cherrypy.request.local.port==STDPORT:
             if conf["HTTP"]["reverse_proxied"]==True:
                 cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
         if cherrypy.request.local.port==SSLPORT:
             if conf["HTTPS"]["reverse_proxied"]==True:
                 cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
-        if "host" in cherrypy.request.headers:
-            virt_host = cherrypy.request.headers["host"]
-        else:
-            cherrypy.response.status = 404
-            logging("", 1, [cherrypy,"No host header",list,paramlines])
-            return("")
-            
         try:
             if conf["vhosts-enabled"]==True:
                 virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
@@ -724,39 +748,13 @@ class WebInterface:
             try:
                 (sievedata,sieve_cache) = sieve(sievedata,sieve_cache) #pre-page render sieve
             except Exception,e:
-                if isinstance(e,type(RedServ.staticfileserve(""))):
-                    return(e.value)
-                if isinstance(e,type(cherrypy.HTTPRedirect(""))):
-                    (https_redirect_str,cherrypy.response.status) = e
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    raise(e)
-                if isinstance(e,type(cherrypy.HTTPError(404))):
-                    status,error = e
-                    cherrypy.response.status = status
-                    cherrypy.response.headers["content-type"] = "text/plain"
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(error+debughandler(params))
-                cherrypy.response.status = 404
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                cherrypy.response.headers["content-type"] = "text/plain"
-                return("404\n"+RedServ.trace_back(False))
+                (response_data,cherrypy) = page_error_handler(e,cherrypy,virt_host,list,paramlines)
+                return(response_data)
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
             list = sievedata['URI'].split("/")
-            if isinstance(sievedata['data'],type(RedServ.staticfileserve(""))):
-                return(sievedata['data'].value)
-            if isinstance(sievedata['data'],type(cherrypy.HTTPRedirect(""))):
-                (https_redirect_str,cherrypy.response.status) = sievedata['data']
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                raise(sievedata['data'])
-            if isinstance(sievedata['data'],type(cherrypy.HTTPError(404))):
-                status,error = sievedata['data']
-                cherrypy.response.status = status
-                cherrypy.response.headers["content-type"] = "text/plain"
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return(error+debughandler(params))
-            
+            (sievedata['data'],cherrypy) = page_error_handler(sievedata['data'],cherrypy,virt_host,list,paramlines,False)
             no_serve_message = "404<br>[Errno 2] No such file or directory: '"+"/"+"/".join(list)+"'"
             if page in RedServ.noserving:
                 cherrypy.response.status = 404
@@ -846,56 +844,14 @@ class WebInterface:
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(http_response(datatoreturn,params,virt_host,list,paramlines))
             except Exception,e:
-                if isinstance(e,type(RedServ.staticfileserve(""))):
-                    return(e.value)
-                if isinstance(e,type(cherrypy.HTTPRedirect(""))):
-                    (https_redirect_str,cherrypy.response.status) = e
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    raise(e)
-                if isinstance(e,type(cherrypy.HTTPError(404))):
-                    status,error = e
-                    cherrypy.response.status = status
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(error+debughandler(params))
-                type_, value_, traceback_ = sys.exc_info()
-                ex = traceback.format_exception(type_, value_, traceback_)
-                trace = "\n".join(ex)
-                cherrypy.response.status = 404
-                datatoreturn["datareturned"] = "404\n"+str(trace).replace(virtloc,"/")
-                (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                cherrypy.response.headers["content-type"] = "text/plain"
-                return(http_response(datatoreturn,params,virt_host,list,paramlines))
-            if isinstance(datatoreturn["datareturned"],type(RedServ.staticfileserve(""))):
-                return(datatoreturn["datareturned"].value)
-            if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPRedirect(""))):
-                (https_redirect_str,cherrypy.response.status) = datatoreturn["datareturned"]
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                raise(datatoreturn["datareturned"])
-            if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPError(404))):
-                status,error = datatoreturn["datareturned"]
-                cherrypy.response.status = status
-                cherrypy.response.headers["content-type"] = "text/plain"
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return(error+debughandler(params))
+                (response_data,cherrypy) = page_error_handler(e,cherrypy,virt_host,list,paramlines)
+                return(response_data)
+            (datatoreturn["datareturned"],cherrypy) = page_error_handler(datatoreturn["datareturned"],cherrypy,virt_host,list,paramlines,False)
             try:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
             except Exception,e:
-                if isinstance(e,type(RedServ.staticfileserve(""))):
-                    return(e.value)
-                if isinstance(e,type(cherrypy.HTTPRedirect(""))):
-                    (https_redirect_str,cherrypy.response.status) = e
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    raise(e)
-                if isinstance(e,type(cherrypy.HTTPError(404))):
-                    status,error = e
-                    cherrypy.response.status = status
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(error+debughandler(params))
-                cherrypy.response.status = 404
-                logging("", 1, [cherrypy,virt_host,list,paramlines])
-                cherrypy.response.headers["content-type"] = "text/plain"
-                return("404\n"+RedServ.trace_back(False)+debughandler(params))
+                (response_data,cherrypy) = page_error_handler(e,cherrypy,virt_host,list,paramlines)
+                return(response_data)
             cj = datatoreturn['cj']
             site_glo_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
