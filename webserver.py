@@ -245,6 +245,7 @@ class RedServer(object):
                 self.basicauthend.append(endingwith)
     
     def _serve_static_file(self,virt_host,list,paramlines,filename):
+        # internal function, DO NOT use in page scripts.
         cherrypy.response.status = 200
         logging("", 1, [cherrypy,virt_host,list,paramlines])
         #caching header so that browsers can cache our content
@@ -502,13 +503,13 @@ def notfound(cherrypy,virt_host,paramlines,list,params):
     cherrypy.response.headers["content-type"] = "text/plain"
     logging("",1,[cherrypy,virt_host,list,paramlines])
     (sysname, nodename, release, version, machine) = os.uname()
-    return("404<br>"+str("/"+"/".join(list))+debughandler(params))
+    return("404\n"+str("/"+"/".join(list))+debughandler(params))
     
 def notfound2(cherrypy,e,virtloc,params):
     cherrypy.response.status = 404
     cherrypy.response.headers["content-type"] = "text/plain"
     (sysname, nodename, release, version, machine) = os.uname()
-    return("404<br>"+str(e).replace(virtloc,"/")+debughandler(params))
+    return("404\n"+str(e).replace(virtloc,"/")+debughandler(params))
     
 def PHP(path):
     proc = subprocess.check_output(["php",path])
@@ -763,7 +764,7 @@ class WebInterface:
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 return(error+debughandler(params))
             
-            no_serve_message = "404<br>[Errno 2] No such file or directory: '"+"/"+"/".join(list)+"'"
+            no_serve_message = "404\n"+"/"+"/".join(list)
             if page in RedServ.noserving:
                 cherrypy.response.status = 404
                 cherrypy.response.headers["content-type"] = "text/plain"
