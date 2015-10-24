@@ -287,6 +287,9 @@ def config_init(config_location):
             "enabled": false,
             "thread_threads": 50,
             "socket_queue": 50,
+            "CA_cert": "default-ca.pem",
+            "cert": "cert.crt",
+            "cert_private_key": "privkey.key",
             "port": 8081
          },
          "default_404": true,
@@ -1005,6 +1008,10 @@ def web_init():
             from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         SSL_cert_gen(RedServ.sysinfo())
+        if conf["HTTPS"]["cert"]=="":
+            conf["HTTPS"]["cert"] = 'cert.crt'
+        if conf["HTTPS"]["cert_private_key"]=="":
+            conf["HTTPS"]["cert_private_key"] = 'privkey.key'
         RedServ.server1 = cherrypy._cpserver.Server()
         RedServ.server1.socket_port=SSLPORT
         RedServ.server1._socket_host='0.0.0.0'
@@ -1015,10 +1022,10 @@ def web_init():
         RedServ.server1.socket_timeout=3
         #RedServ.server1.statistics=True
         RedServ.server1.ssl_module = 'custom-pyopenssl'
-        RedServ.server1.ssl_certificate = os.path.join(current_dir,'cert.crt')
-        RedServ.server1.ssl_private_key = os.path.join(current_dir,'privkey.key')
-        if os.path.exists(os.path.join(current_dir,'ca.pem')):
-            RedServ.server1.ssl_certificate_chain = os.path.join(current_dir,'ca.pem')
+        RedServ.server1.ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
+        RedServ.server1.ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
+        if not (conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="") and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])):
+            RedServ.server1.ssl_certificate_chain = os.path.join(current_dir,conf["HTTPS"]["CA_cert"])
         RedServ.server1.subscribe()
     if conf["HTTP"]["enabled"]==True:
         RedServ.server2 = cherrypy._cpserver.Server()
