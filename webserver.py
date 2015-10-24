@@ -966,9 +966,14 @@ def web_init():
         RedServ.debugger(0,"You need to enable one transfer protocol, either HTTP or HTTPS in the config")
         exit()
     RedServ.debugger(3,"Hostname: "+RedServ.sysinfo())
+    site_logfolder = os.path.join(current_dir,"logs","site",RedServ.sysinfo(),time.strftime("%Y"), time.strftime("%m"))
+    site_logfile = os.path.join(site_logfolder,time.strftime("%d")+".txt")
+    if not os.path.exists(site_logfolder):
+        os.makedirs(site_logfolder)
     global_conf = {
         'global': { 'engine.autoreload.on': False,
-        'log.error_file': os.path.join('logs','site','site.'+RedServ.sysinfo()+'.log'),
+        'environment': 'embedded',
+        'log.error_file': site_logfile,
         'log.screen': False,
         'gzipfilter.on':True,
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
@@ -1024,8 +1029,10 @@ def web_init():
         RedServ.server1.ssl_module = 'custom-pyopenssl'
         RedServ.server1.ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
         RedServ.server1.ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
-        if not (conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="") and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])):
-            RedServ.server1.ssl_certificate_chain = os.path.join(current_dir,conf["HTTPS"]["CA_cert"])
+        if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
+            conf["HTTPS"]["CA_cert"] = None
+        if os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])) and not conf["HTTPS"]["CA_cert"]==None:
+            RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,conf["HTTPS"]["CA_cert"]))
         RedServ.server1.subscribe()
     if conf["HTTP"]["enabled"]==True:
         RedServ.server2 = cherrypy._cpserver.Server()
