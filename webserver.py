@@ -615,13 +615,26 @@ def conf_reload(conf):
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
         if not new_conf["HTTP"]["port"]==old_conf["HTTP"]["port"]:
             print("Please restart RedServ to change port on HTTP to "+str(new_conf["HTTP"]["port"]))
-            #RedServ.server1.unsubscribe()
-            #RedServ.server1.stop()
-            #RedServ.server1.socket_port=new_conf["HTTP"]["port"]
-            #RedServ.server1.start()
-            #RedServ.server1.subscribe()
-            #print(dir(RedServ.server1))
+            #RedServ.server2.unsubscribe()
+            #RedServ.server2.stop()
+            #RedServ.server2.socket_port=new_conf["HTTP"]["port"]
+            #RedServ.server2.start()
+            #RedServ.server2.subscribe()
+            #print(dir(RedServ.server2))
+            #cherrypy.engine.restart()
         if not new_conf["HTTPS"]["port"]==old_conf["HTTPS"]["port"]:
+            #RedServ.server1.unsubscribe()
+            ##RedServ.server1.stop()
+            #RedServ.server1.thread_pool=new_conf["HTTPS"]["thread_pool"]
+            #RedServ.server1.socket_queue_size=new_conf["HTTPS"]["socket_queue"]
+            #RedServ.server1.socket_port=new_conf["HTTPS"]["port"]
+            #if new_conf["HTTPS"]["CA_cert"]=="default-ca.pem" or new_conf["HTTPS"]["CA_cert"]=="":
+            #    new_conf["HTTPS"]["CA_cert"] = None
+            #if os.path.exists(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"])) and not new_conf["HTTPS"]["CA_cert"]==None:
+            #    RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"]))
+            #RedServ.server1.subscribe()
+            #RedServ.server1.start()
+            #cherrypy.engine.restart()
             print("Please restart RedServ to change port on HTTPS to "+str(new_conf["HTTPS"]["port"]))
         #new_conf["HTTP"]["port"] = STDPORT
         #new_conf["HTTPS"]["port"] = SSLPORT
@@ -1019,7 +1032,7 @@ def web_init():
             conf["HTTPS"]["cert_private_key"] = 'privkey.key'
         RedServ.server1 = cherrypy._cpserver.Server()
         RedServ.server1.socket_port=SSLPORT
-        RedServ.server1._socket_host='0.0.0.0'
+        RedServ.server1.socket_host='0.0.0.0'
         RedServ.server1.thread_pool=conf["HTTPS"]["thread_pool"]
         RedServ.server1.socket_queue_size=conf["HTTPS"]["socket_queue"]
         RedServ.server1.thread_pool_max=-1
@@ -1037,7 +1050,7 @@ def web_init():
     if conf["HTTP"]["enabled"]==True:
         RedServ.server2 = cherrypy._cpserver.Server()
         RedServ.server2.socket_port=STDPORT
-        RedServ.server2._socket_host="0.0.0.0"
+        RedServ.server2.socket_host="0.0.0.0"
         RedServ.server2.thread_pool=conf["HTTPS"]["thread_pool"]
         RedServ.server2.socket_queue_size=conf["HTTP"]["socket_queue"]
         RedServ.server2.thread_pool_max=-1
