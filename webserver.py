@@ -792,6 +792,7 @@ class WebInterface:
             #        cherrypy.response.status = 401
             #   ^ handle basic auth protection requests and make sure to add input of a realm and a user list.    
         cherrypy.response.headers["Server"] = "RedServ 1.5"
+        cherrypy.response.headers['X-Original-Server'] = "RedServ 1.5"
         if bad == False:
             headers = {}
             responsecode = 200
@@ -992,6 +993,8 @@ def web_init():
         'tools.gzip.on':True,
         'tools.encode.on':True,
         'tools.decode.on':True,
+        'tools.json_in.on': True,
+        'tools.json_in.force': False,
         'tools.sessions.on':conf["sessions"],
         'tools.sessions.locking':'explicit',
         #'tools.sessions.secure':conf["sessions"],
