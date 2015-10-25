@@ -681,7 +681,7 @@ class WebInterface:
         list = args
         paramlines = ""
         rproxied_test = "X-Forwarded-Host" in cherrypy.request.headers and ((cherrypy.request.local.port==STDPORT and conf["HTTP"]["reverse_proxied"]==True) or (cherrypy.request.local.port==SSLPORT and conf["HTTPS"]["reverse_proxied"]==True))
-        if len(params)>0:
+        if len(cherrypy.request.query_string)>0:
             paramlines = "?"+cherrypy.request.query_string
         if "host" in cherrypy.request.headers or rproxied_test==True:
             if "host" in cherrypy.request.headers:
