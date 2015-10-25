@@ -561,8 +561,8 @@ def logging(logline,logtype,*extra):
                         no_log = True
                 if no_log==False:
                     logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
-                    str(cherrypy.request.remote.ip)+"("+str(cherrypy.response.status)+\
-                    ")	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
+                    str(cherrypy.request.remote.ip)+"	["+cherrypy.request.method+"("+str(cherrypy.response.status)+\
+                    ")]	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
                     str(cherrypy.request.headers)+"\n"
                 
             if logtype == 2: #bad vhost log line
