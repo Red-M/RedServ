@@ -518,17 +518,16 @@ def PHP(path):
     proc = subprocess.check_output(["php",path])
     return(proc)
     
-def debughandler(params):
+def debughandler(params,debugtable=[]):
     if "debug" in params:
         if params["debug"]=="1":
             if "v" in params:
                 if not params["v"] == "1":
-                    debuginfo = "<br>\n<l>"+RedServ.sysinfo()+"</l>"
+                    debuginfo = "\n"+RedServ.sysinfo()
                 else:
-                    debugtable = []
-                    debuginfo = "<br>\n<l>"+" ".join(os.uname())+"</l>"
+                    debuginfo = "\n".join(debugtable)+"\n"+" ".join(os.uname())+"\n"+RedServ.sysinfo()
             else:
-                debuginfo = "<br>\n<l>"+RedServ.sysinfo()+"</l>"
+                debuginfo = "\n"+RedServ.sysinfo()
             return(debuginfo)
     return("")
     
