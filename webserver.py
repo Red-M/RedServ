@@ -680,6 +680,9 @@ class WebInterface:
         bad = False
         list = args
         paramlines = ""
+        if "json" in dir(cherrypy.request):
+            cherrypy.request.body.params.update(cherrypy.request.json)
+            params.update(cherrypy.request.json)
         rproxied_test = "X-Forwarded-Host" in cherrypy.request.headers and ((cherrypy.request.local.port==STDPORT and conf["HTTP"]["reverse_proxied"]==True) or (cherrypy.request.local.port==SSLPORT and conf["HTTPS"]["reverse_proxied"]==True))
         if len(cherrypy.request.query_string)>0:
             paramlines = "?"+cherrypy.request.query_string
