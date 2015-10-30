@@ -81,6 +81,8 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
+        self._version_string_ = "1.5.0_beta"
+        self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.https_port = 8081
         if Mako_imported==True:
@@ -380,6 +382,7 @@ def SSL_cert_gen(nodename):
     if SSL_imported==True:
         (C_F,K_F) = create_ssl_cert()
         if not os.path.exists(C_F) or not os.path.exists(K_F):
+            RedServ.debugger(4, "Generating SSL certs")
             k = OpenSSL.crypto.PKey()
             k.generate_key(OpenSSL.crypto.TYPE_RSA, 4096)
             cert = OpenSSL.crypto.X509()
@@ -677,6 +680,8 @@ class WebInterface:
         RedServ.http_port = STDPORT
         RedServ.https_port = SSLPORT
         
+        cherrypy.response.headers["Server"] = RedServ._version_
+        cherrypy.response.headers['X-Original-Server'] = RedServ._version_
         bad = False
         list = args
         paramlines = ""
@@ -794,8 +799,6 @@ class WebInterface:
             #        datatoreturn["datareturned"] = "Please login."
             #        cherrypy.response.status = 401
             #   ^ handle basic auth protection requests and make sure to add input of a realm and a user list.    
-        cherrypy.response.headers["Server"] = "RedServ 1.5"
-        cherrypy.response.headers['X-Original-Server'] = "RedServ 1.5"
         if bad == False:
             headers = {}
             responsecode = 200
@@ -969,6 +972,8 @@ def web_init():
             os.mkdir(os.path.abspath(data))
     global RedServ
     RedServ = RedServer()
+    cherrypy.server.httpserver.version = RedServ._version_
+    RedServ.debugger(3,"Starting RedServ version: "+RedServ._version_string_)
     # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
     conflocation = os.path.join(current_dir,"config")
     config_init(conflocation)
@@ -1064,13 +1069,6 @@ def web_init():
         #RedServ.server2.statistics=True
         RedServ.server2.subscribe()
     
-    port_statuses = "Web server starting up:"
-    if conf["HTTP"]["enabled"]==True:
-        port_statuses = port_statuses+"\nHTTP on port: "+str(RedServ.server2.socket_port)
-    if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
-        port_statuses = port_statuses+"\nHTTPS on port: "+str(RedServ.server1.socket_port)
-    RedServ.debugger(3,port_statuses)
-    
     global python_page_cache
     python_page_cache = {}
     
@@ -1081,6 +1079,13 @@ def web_init():
     if os.path.exists(sievepath):
         sieve_cache["global"].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
         sieve_cache["global"].append(os.path.getmtime(sievepath))
+    
+    port_statuses = "Web server starting up: "
+    if conf["HTTP"]["enabled"]==True:
+        port_statuses = port_statuses+"HTTP port: "+str(RedServ.server2.socket_port)+" "
+    if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
+        port_statuses = port_statuses+"HTTPS port: "+str(RedServ.server1.socket_port)
+    RedServ.debugger(3,port_statuses)
     if not os.name=="nt":
         cherrypy.engine.signals.subscribe()
     cherrypy.engine.start()
