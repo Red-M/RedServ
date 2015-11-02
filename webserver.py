@@ -402,6 +402,7 @@ def SSL_cert_gen(nodename,dir):
             open(C_F, "wt").write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
             open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
     else:
+        RedServ.debugger(0, "No SSL certs, no SSL support and RedServ has HTTPS turned on. Terminating.")
         exit()
 
     
