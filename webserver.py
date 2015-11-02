@@ -257,6 +257,8 @@ class RedServer(object):
     
     def static_file_serve(self,filename,force_type=None,disposition=None,name=None):
         #caching header so that browsers can cache our content
+        if name==None:
+            name=os.path.basename(filename)
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
         typedat = mimetypes.guess_type(filename)
         if not force_type==None:
