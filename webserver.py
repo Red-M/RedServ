@@ -22,7 +22,6 @@ import ast
 import urllib,urllib2
 import re
 import traceback
-import inspect
 import cgi
 try:
     import OpenSSL
