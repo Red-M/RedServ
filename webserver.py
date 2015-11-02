@@ -59,6 +59,7 @@ exed = False
 if current_dir.endswith(".zip"):
     exed = True
 site_glo_data = {}
+site_shared_data = {}
 
 class RedServer(object):
     def __init__(self):
@@ -670,6 +671,7 @@ class WebInterface:
         global lookup
         global cherrypy
         global site_glo_data
+        global site_shared_data
         global conf
         global python_page_cache
         global sieve_cache
@@ -866,7 +868,7 @@ class WebInterface:
             "filename":filename.strip(virtloc+os.sep.join(list)),
             "this_page":virt_host+"/"+"/".join(list),
             "this_domain":virt_host,
-            "global_site_data":site_glo_data,
+            "global_site_data":site_shared_data,
             "site_data":site_glo_data[virt_host],
             "http_port":STDPORT,
             "https_port":SSLPORT
@@ -930,7 +932,7 @@ class WebInterface:
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.response.headers["content-type"] = "text/plain"
                 return("404\n"+RedServ.trace_back(False)+debughandler(params))
-            site_glo_data = datatoreturn['global_site_data']
+            site_shared_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
             responsecode = datatoreturn['response']
             cherrypy.response.status = responsecode
