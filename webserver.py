@@ -391,7 +391,7 @@ def SSL_cert_gen(nodename,dir):
             cert.get_subject().ST = "n/a"
             cert.get_subject().L = "n/a"
             cert.get_subject().O = "RedServ"
-            cert.get_subject().OU = "RedServ Test Cert "+str(time.time())
+            cert.get_subject().OU = "RedServ Test Cert Generated: "+str(time.time())
             cert.get_subject().CN = nodename
             cert.set_serial_number(1000)
             cert.gmtime_adj_notBefore(0)
