@@ -78,7 +78,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.5.0_beta"
+        self._version_string_ = "1.5.1_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.https_port = 8081
@@ -800,7 +800,7 @@ class WebInterface:
             responsecode = 200
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
-            if len(list)>=2 and str(list[0]).lower()=="static":
+            if (len(list)>=2 and str(list[0]).lower()=="static") or (not (str(list[-1]).endswith(".py") and str(list[-1]).endswith(".php"))):
                 #cherrypy.response.headers['Cache-Control'] = 'private, max-age=120'
                 if str(list[0])=="static":
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
@@ -814,10 +814,13 @@ class WebInterface:
                     if os.path.exists(filename):
                         return(RedServ._serve_static_file(virt_host,list,paramlines,filename))
                     else:
-                        cherrypy.response.status = 404
-                        cherrypy.response.headers["content-type"] = "text/plain"
-                        logging("", 1, [cherrypy,virt_host,list,paramlines])
-                        return("404")
+                        if str(list[0]).lower()=="favicon.ico":
+                            return(RedServ._serve_static_file(virt_host,list,paramlines,os.path.join(current_dir, 'static', "favicon.ico")))
+                        else:
+                            cherrypy.response.status = 404
+                            cherrypy.response.headers["content-type"] = "text/plain"
+                            logging("", 1, [cherrypy,virt_host,list,paramlines])
+                            return("404")
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
             try:
                 bang = os.listdir(filename)
@@ -866,12 +869,6 @@ class WebInterface:
                 if filename.endswith(".py"):
                     datatoreturn.update(globals())
                     datatoreturn = exec_page_script(filename,datatoreturn,python_page_cache)
-                else:
-                    datatoreturn["datareturned"] = open(filename, 'r').read()
-                    cherrypy.response.status = 200
-                    (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
-                    logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(http_response(datatoreturn,params,virt_host,list,paramlines))
             except Exception,e:
                 if isinstance(e,type(RedServ.staticfileserve(""))):
                     return(e.value)
@@ -1004,18 +1001,13 @@ def web_init():
         'engine.timeout_monitor.on':True,
         'engine.timeout_monitor.frequency':60
     }}
-    application_conf = {
-        "/favicon.ico": {
-        'tools.staticfile.on' : True,
-        'tools.staticfile.filename' : os.path.join(current_dir,
-        'static', "favicon.ico"),
-        }
-    }
     cherrypy.config.update(global_conf)
     web_interface = WebInterface()
-    cherrypy.tree.mount(web_interface, '/', config = application_conf)
-
+    tree_mount = cherrypy.tree.mount(web_interface, '/')
+    del tree_mount.root.favicon_ico
+    
     cherrypy.server.unsubscribe()
+    cherrypy.server.stop()
 
     global STDPORT
     STDPORT = conf["HTTP"]["port"]
