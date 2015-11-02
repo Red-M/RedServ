@@ -802,7 +802,7 @@ class WebInterface:
             responsecode = 200
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
-            if (len(list)>=2 and str(list[0]).lower()=="static") or (not (str(list[-1]).endswith(".py") and (str(list[-1]).endswith(".php") and conf["php"]==True))):
+            if len(list)>=2 and str(list[0]).lower()=="static":
                 #cherrypy.response.headers['Cache-Control'] = 'private, max-age=120'
                 if str(list[0])=="static":
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
@@ -816,13 +816,10 @@ class WebInterface:
                     if os.path.exists(filename):
                         return(RedServ._serve_static_file(virt_host,list,paramlines,filename))
                     else:
-                        if str(list[0]).lower()=="favicon.ico":
-                            return(RedServ._serve_static_file(virt_host,list,paramlines,os.path.join(current_dir, 'static', "favicon.ico")))
-                        else:
-                            cherrypy.response.status = 404
-                            cherrypy.response.headers["content-type"] = "text/plain"
-                            logging("", 1, [cherrypy,virt_host,list,paramlines])
-                            return("404")
+                        cherrypy.response.status = 404
+                        cherrypy.response.headers["content-type"] = "text/plain"
+                        logging("", 1, [cherrypy,virt_host,list,paramlines])
+                        return("404")
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
             try:
                 bang = os.listdir(filename)
@@ -845,9 +842,16 @@ class WebInterface:
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(notfound2(cherrypy,e,virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
-                typedat = mimetypes.guess_type(filename)
-                if not typedat==(None,None):
-                    (cherrypy.response.headers['Content-Type'],nothing) = typedat
+                if os.path.exists(filename):
+                    return(RedServ._serve_static_file(virt_host,list,paramlines,filename))
+                else:
+                    if str(list[0]).lower()=="favicon.ico":
+                        return(RedServ._serve_static_file(virt_host,list,paramlines,os.path.join(current_dir, 'static', "favicon.ico")))
+                    else:
+                        cherrypy.response.status = 404
+                        cherrypy.response.headers["content-type"] = "text/plain"
+                        logging("", 1, [cherrypy,virt_host,list,paramlines])
+                        return("404")
             datatoreturn = {
             "sievetype":"out", 
             "params":params,
