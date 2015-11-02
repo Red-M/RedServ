@@ -255,14 +255,14 @@ class RedServer(object):
         else:
             return(cherrypy.lib.static.serve_download(filename))
     
-    def static_file_serve(self,cherrypy,filename,force_type=None):
+    def static_file_serve(self,filename,force_type=None,disposition=None,name=None):
         #caching header so that browsers can cache our content
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
         typedat = mimetypes.guess_type(filename)
         if not force_type==None:
-            return(self.staticfileserve(cherrypy.lib.static.serve_file(filename,content_type=force_type)))
+            return(self.staticfileserve(cherrypy.lib.static.serve_file(filename,force_type,disposition,name)))
         if not typedat==(None,None):
-            return(self.staticfileserve(cherrypy.lib.static.serve_file(filename)))
+            return(self.staticfileserve(cherrypy.lib.static.serve_file(filename,None,disposition,name)))
         else:
             return(self.staticfileserve(cherrypy.lib.static.serve_download(filename)))
 
