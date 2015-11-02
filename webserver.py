@@ -17,7 +17,6 @@ import json
 import mimetypes
 import socket
 import random
-import subprocess
 import sqlite3
 import ast
 import urllib,urllib2
@@ -40,12 +39,10 @@ except Exception,e:
     Mako_imported = False
 try:
     import requests
-    global reqcj
     requests.cookie_session = requests.Session()
 except Exception,e:
     print("ERROR: Could not load requests library.")
-from cookielib import CookieJar
-cj = CookieJar()
+
 
 os.chdir('.' or sys.path[0])
 current_dir = os.path.join(os.getcwd(),os.sep.join(sys.argv[0].split(os.sep)[0:-1]))
@@ -666,7 +663,6 @@ class WebInterface:
     """ main web interface class """
 
     def default(self, *args,**params):
-        global cj
         global lookup
         global cherrypy
         global site_glo_data
@@ -851,7 +847,6 @@ class WebInterface:
             "sievetype":"out", 
             "params":params,
             "datareturned":"'",
-            "cj":cj,
             "headers":headers,
             "response":responsecode,
             "request":cherrypy.request,
@@ -930,7 +925,6 @@ class WebInterface:
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.response.headers["content-type"] = "text/plain"
                 return("404\n"+RedServ.trace_back(False)+debughandler(params))
-            cj = datatoreturn['cj']
             site_glo_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
             responsecode = datatoreturn['response']
