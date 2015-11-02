@@ -255,10 +255,12 @@ class RedServer(object):
         else:
             return(cherrypy.lib.static.serve_download(filename))
     
-    def static_file_serve(self,cherrypy,filename):
+    def static_file_serve(self,cherrypy,filename,force_type=None):
         #caching header so that browsers can cache our content
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
         typedat = mimetypes.guess_type(filename)
+        if not force_type==None:
+            return(self.staticfileserve(cherrypy.lib.static.serve_file(filename,content_type=force_type)))
         if not typedat==(None,None):
             return(self.staticfileserve(cherrypy.lib.static.serve_file(filename)))
         else:
@@ -800,7 +802,7 @@ class WebInterface:
             responsecode = 200
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
                 return("")
-            if (len(list)>=2 and str(list[0]).lower()=="static") or (not (str(list[-1]).endswith(".py") and str(list[-1]).endswith(".php"))):
+            if (len(list)>=2 and str(list[0]).lower()=="static") or (not (str(list[-1]).endswith(".py") and (str(list[-1]).endswith(".php") and conf["php"]==True))):
                 #cherrypy.response.headers['Cache-Control'] = 'private, max-age=120'
                 if str(list[0])=="static":
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
