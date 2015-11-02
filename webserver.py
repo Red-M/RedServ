@@ -277,34 +277,34 @@ class staticfileserve(Exception):
  
 def config_init(config_location):
     if not os.path.exists(config_location):
-        open(config_location, 'w').write(inspect.cleandoc(
-        r'''{
-         "HTTP":{
-            "reverse_proxied": false,
-            "enabled": true,
-            "thread_threads": 100,
-            "socket_queue": 100,
-            "port": 8080
-         },
-         "HTTPS":{
-            "reverse_proxied": false,
-            "enabled": false,
-            "thread_threads": 50,
-            "socket_queue": 50,
-            "CA_cert": "default-ca.pem",
-            "cert": "cert.crt",
-            "cert_private_key": "privkey.key",
-            "port": 8081
-         },
-         "default_404": true,
-         "vhosts-enabled": true,
-         "vhost-lookup": "domains",
-         "sessions": false,
-         "php": false,
-         "database_connections": false,
-         "mako_templates": false,
-         "log": true
-        }''') + '\n')
+        config_file_data = {
+            "default_404": True,
+            "vhosts-enabled": True,
+            "vhost-lookup": "domains",
+            "sessions": False,
+            "php": False,
+            "database_connections": False,
+            "mako_templates": False,
+            "log": True
+        }
+        config_file_data["HTTP"] = {
+            "reverse_proxied":False,
+            "enabled":False,
+            "thread_pool":50,
+            "socket_queue":50,
+            "port":8081
+        }
+        config_file_data["HTTPS"] = {
+            "reverse_proxied":False,
+            "enabled":False,
+            "thread_pool":50,
+            "socket_queue":50,
+            "port":8081,
+            "CA_cert":"default-ca.pem",
+            "cert":"cert.crt",
+            "cert_private_key":"privkey.key"
+        }
+        open(config_location, 'w').write(json.dumps(config_file_data, sort_keys=True,indent=2, separators=(',', ': ')))
 
 def config(config_location):
     try:
@@ -313,7 +313,7 @@ def config(config_location):
             config_cache[1] = os.path.getmtime(config_location)
         return(config_cache[0])
     except ValueError, e:
-        print 'ERROR: malformed config!', e
+        RedServ.debugger(0,'malformed config! '+e)
     
 def TCP_client(ip, port, message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
