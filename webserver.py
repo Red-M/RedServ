@@ -372,16 +372,16 @@ def filepicker(filename,fileext):
                 pass
     return(filename)
     
-def create_ssl_cert(cert_dir="."):
+def ssl_cert_directory(cert_dir="."):
     CERT_FILE = "cert.crt"
     KEY_FILE = "privkey.key"
     C_F = os.path.join(cert_dir, CERT_FILE)
     K_F = os.path.join(cert_dir, KEY_FILE)
     return(C_F,K_F)
     
-def SSL_cert_gen(nodename):
+def SSL_cert_gen(nodename,dir):
     if SSL_imported==True:
-        (C_F,K_F) = create_ssl_cert()
+        (C_F,K_F) = ssl_cert_directory(dir)
         if not os.path.exists(C_F) or not os.path.exists(K_F):
             RedServ.debugger(4, "Generating SSL certs")
             k = OpenSSL.crypto.PKey()
@@ -960,12 +960,13 @@ def web_init():
     db_loc = os.path.abspath('db')
     pathing = [
     "db",
+    "certs",
     "logs",
     os.path.join("logs","site"),
     "pages",
     "static",
-    "util",
-    "templates"
+    "templates",
+    "util"
     ]
     for data in pathing:
         if not os.path.exists(os.path.abspath(data)):
@@ -1030,7 +1031,7 @@ def web_init():
         else:
             from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
-        SSL_cert_gen(RedServ.sysinfo())
+        SSL_cert_gen(RedServ.sysinfo(),os.path.abspath("certs"))
         if conf["HTTPS"]["cert"]=="":
             conf["HTTPS"]["cert"] = 'cert.crt'
         if conf["HTTPS"]["cert_private_key"]=="":
