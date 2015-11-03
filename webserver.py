@@ -672,7 +672,7 @@ def http_response(datatoreturn,params,virt_host,list,paramlines):
         local_error_pages = datatoreturn["local_error_pages"]
         RedServ.error_pages[virt_host] = local_error_pages
         cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
-        raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params)))
+        raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
     return(datatoreturn["datareturned"])
 
 class WebInterface:
