@@ -69,7 +69,7 @@ class RedServer(object):
         self.staticfileserve = staticfileserve
         self.error_pages = {}
         self.default_error_pages = {"default":self.default_error_page}
-        self.error_template = '%(status)s\n\n%(message)s\n\n%(traceback)s\n\n%(version)s'
+        self.error_template = '%(status)s\n\n%(message)s\n\n%(traceback)s\n\n%(version)s\n'
         
         self.noserving = []
         self.noservingstart = []
@@ -94,9 +94,9 @@ class RedServer(object):
         print(out)
         
     def default_error_page(self,**kwargs):
-        cherrypy.response.headers['Content-Type'] = "text/plain;charset=utf-8"
+        cherrypy.response.headers['Content-Type'] = "text/plain"
         result = self.error_template % kwargs
-        return result.encode('utf-8')
+        return(result.replace("\n\n\n","\n"))
         
     def force_https(self,cherrypy,url,redirect=True):
         if redirect==True:
@@ -519,13 +519,13 @@ def notfound(cherrypy,virt_host,paramlines,list,params):
     cherrypy.response.headers["content-type"] = "text/plain"
     logging("",1,[cherrypy,virt_host,list,paramlines])
     (sysname, nodename, release, version, machine) = os.uname()
-    return("404\n"+str("/"+"/".join(list))+debughandler(params))
+    raise(cherrypy.HTTPError(404,str("/"+"/".join(list))+debughandler(params)))
     
 def notfound2(cherrypy,e,virtloc,params):
     cherrypy.response.status = 404
     cherrypy.response.headers["content-type"] = "text/plain"
     (sysname, nodename, release, version, machine) = os.uname()
-    return("404\n"+str(e).replace(virtloc,"/")+debughandler(params))
+    raise(cherrypy.HTTPError(404,str(e).replace(virtloc,"/")+debughandler(params)))
     
 def PHP(path):
     proc = subprocess.check_output(["php",path])
@@ -784,7 +784,7 @@ class WebInterface:
                     cherrypy.response.status = status
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(error+debughandler(params))
+                    raise(cherrypy.HTTPError(status,error+debughandler(params)))
                 cherrypy.response.status = 404
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
@@ -807,14 +807,13 @@ class WebInterface:
                 cherrypy.response.status = status
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return(error+debughandler(params))
+                raise(cherrypy.HTTPError(status,error+debughandler(params)))
             
             no_serve_message = "404\n"+"/"+"/".join(list)
             if page in RedServ.noserving:
-                cherrypy.response.status = 404
                 cherrypy.response.headers["content-type"] = "text/plain"
-                bad = True
-                sievedata["data"] = no_serve_message
+                logging("", 1, [cherrypy,virt_host,list,paramlines])
+                raise(cherrypy.HTTPError(404,no_serve_message))
             #if cherrypy.request.login==None:
             #    if (page in RedServ.basicauth) or (virt_host in RedServ.basicauth):
             #        bad = True
