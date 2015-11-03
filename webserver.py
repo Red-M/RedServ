@@ -67,6 +67,9 @@ class RedServer(object):
         self.nologgingend = []
         
         self.staticfileserve = staticfileserve
+        self.error_pages = {}
+        self.default_error_pages = {"default":self.default_error_page}
+        self.error_template = '%(status)s\n\n%(message)s\n\n%(traceback)s\n\n%(version)s'
         
         self.noserving = []
         self.noservingstart = []
@@ -89,6 +92,11 @@ class RedServer(object):
 
     def test(self,out):
         print(out)
+        
+    def default_error_page(self,**kwargs):
+        cherrypy.response.headers['Content-Type'] = "text/plain;charset=utf-8"
+        result = self.error_template % kwargs
+        return result.encode('utf-8')
         
     def force_https(self,cherrypy,url,redirect=True):
         if redirect==True:
@@ -661,7 +669,10 @@ def http_response(datatoreturn,params,virt_host,list,paramlines):
         cherrypy.response.status = status
         cherrypy.response.headers["content-type"] = "text/plain"
         logging("", 1, [cherrypy,virt_host,list,paramlines])
-        return(error+debughandler(params))
+        local_error_pages = datatoreturn["local_error_pages"]
+        RedServ.error_pages[virt_host] = local_error_pages
+        cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
+        raise(cherrypy.HTTPError(status,error+debughandler(params)))
     return(datatoreturn["datareturned"])
 
 class WebInterface:
@@ -725,6 +736,11 @@ class WebInterface:
                 db_folders = os.path.join("sites",vhosts(virt_host,conf))
                 site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
         
+        if not virt_host in RedServ.error_pages:
+            RedServ.error_pages[virt_host] = RedServ.default_error_pages
+        local_error_pages = RedServ.error_pages[virt_host]
+        cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
+        
         if conf["database_connections"]==True:
             if not "db_conn_loc" in site_glo_data[virt_host]:
                 db_folders = os.path.join("sites",vhosts(virt_host,conf))
@@ -749,6 +765,7 @@ class WebInterface:
             "file_path":filename,
             "this_domain":virt_host,
             "vhost_location":virtloc,
+            "local_error_pages":local_error_pages,
             "data": datsieve,
             "bad":bad,
             "params":params
@@ -775,6 +792,9 @@ class WebInterface:
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
+            local_error_pages = sievedata['local_error_pages']
+            RedServ.error_pages[virt_host] = local_error_pages
+            cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
             list = sievedata['URI'].split("/")
             if isinstance(sievedata['data'],type(RedServ.staticfileserve(""))):
                 return(sievedata['data'].value)
@@ -865,6 +885,7 @@ class WebInterface:
             "request":cherrypy.request,
             "filelocation":filename,
             "vhost_location":virtloc,
+            "local_error_pages":local_error_pages,
             "filename":filename.strip(virtloc+os.sep.join(list)),
             "this_page":virt_host+"/"+"/".join(list),
             "this_domain":virt_host,
@@ -879,6 +900,9 @@ class WebInterface:
                 if filename.endswith(".py"):
                     datatoreturn.update(globals())
                     datatoreturn = exec_page_script(filename,datatoreturn,python_page_cache)
+                    local_error_pages = datatoreturn["local_error_pages"]
+                    RedServ.error_pages[virt_host] = local_error_pages
+                    cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
             except Exception,e:
                 if isinstance(e,type(RedServ.staticfileserve(""))):
                     return(e.value)
@@ -891,7 +915,8 @@ class WebInterface:
                     cherrypy.response.status = status
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(error+debughandler(params))
+                    cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
+                    raise(cherrypy.HTTPError(status,error+debughandler(params)))
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
                 trace = "\n".join(ex)
@@ -912,7 +937,8 @@ class WebInterface:
                 cherrypy.response.status = status
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return(error+debughandler(params))
+                cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
+                raise(cherrypy.HTTPError(status,error+debughandler(params)))
             try:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
             except Exception,e:
@@ -931,7 +957,8 @@ class WebInterface:
                 cherrypy.response.status = 404
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.response.headers["content-type"] = "text/plain"
-                return("404\n"+RedServ.trace_back(False)+debughandler(params))
+                cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
+                raise(cherrypy.HTTPError(404,RedServ.trace_back(False)+debughandler(params)))
             site_shared_data = datatoreturn['global_site_data']
             site_glo_data[virt_host] = datatoreturn['site_data']
             responsecode = datatoreturn['response']
@@ -960,8 +987,8 @@ def web_init():
     os.chdir(current_dir)
     db_loc = os.path.abspath('db')
     pathing = [
-    "db",
     "certs",
+    "db",
     "logs",
     os.path.join("logs","site"),
     "pages",
@@ -975,6 +1002,7 @@ def web_init():
     global RedServ
     RedServ = RedServer()
     cherrypy.server.httpserver.version = RedServ._version_
+    cherrypy.__version__ = RedServ._version_
     RedServ.debugger(3,"Starting RedServ version: "+RedServ._version_string_)
     # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
     conflocation = os.path.join(current_dir,"config")
@@ -1032,11 +1060,12 @@ def web_init():
         else:
             from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
-        SSL_cert_gen(RedServ.sysinfo(),os.path.abspath("certs"))
+        if not (os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert"])) and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert_private_key"]))):
+            SSL_cert_gen(RedServ.sysinfo(),os.path.abspath("certs"))
         if conf["HTTPS"]["cert"]=="":
-            conf["HTTPS"]["cert"] = 'cert.crt'
+            conf["HTTPS"]["cert"] = os.path.join('certs','cert.pem')
         if conf["HTTPS"]["cert_private_key"]=="":
-            conf["HTTPS"]["cert_private_key"] = 'privkey.key'
+            conf["HTTPS"]["cert_private_key"] = os.path.join('certs','privkey.pem')
         RedServ.server1 = cherrypy._cpserver.Server()
         RedServ.server1.socket_port=SSLPORT
         RedServ.server1.socket_host='0.0.0.0'
