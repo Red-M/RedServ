@@ -784,7 +784,7 @@ class WebInterface:
                     cherrypy.response.status = status
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params)))
+                    raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
                 cherrypy.response.status = 404
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
@@ -807,7 +807,7 @@ class WebInterface:
                 cherrypy.response.status = status
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params)))
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
             
             no_serve_message = "404\n"+"/"+"/".join(list)
             if page in RedServ.noserving:
@@ -874,7 +874,7 @@ class WebInterface:
                         cherrypy.response.status = 404
                         cherrypy.response.headers["content-type"] = "text/plain"
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
-                        return("404")
+                        raise(cherrypy.HTTPError(status,""))
             datatoreturn = {
             "sievetype":"out", 
             "params":params,
@@ -937,7 +937,7 @@ class WebInterface:
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
-                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params)))
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
             try:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
             except Exception,e:
@@ -952,7 +952,7 @@ class WebInterface:
                     cherrypy.response.status = status
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(str(error)+str(debughandler(params))
+                    raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
                 cherrypy.response.status = 404
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.response.headers["content-type"] = "text/plain"
