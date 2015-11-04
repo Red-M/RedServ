@@ -30,13 +30,6 @@ except Exception,e:
     print("ERROR: Could not load OpenSSL library. Disabling SSL cert generation.")
     SSL_imported = False
 try:
-    from mako.template import Template
-    from mako.lookup import TemplateLookup
-    Mako_imported = True
-except Exception,e:
-    print("ERROR: Could not load Mako library. Disabling Mako template generation.")
-    Mako_imported = False
-try:
     import requests
     requests.cookie_session = requests.Session()
 except Exception,e:
@@ -85,8 +78,6 @@ class RedServer(object):
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.https_port = 8081
-        if Mako_imported==True:
-            self.lookup = self.template_reload(current_dir)
         os.chdir('.' or sys.path[0])
         self.current_dir = os.path.abspath('.')
 
@@ -182,7 +173,7 @@ class RedServer(object):
         if not endingwith==None:
             if not endwith in self.nologgingend:
                 self.nologgingend.append(endingwith)
-            
+
     def log(self,page=None,domain=None,startingwith=None,endingwith=None):
         if not page==None:
             if page in self.nologging:
@@ -196,28 +187,17 @@ class RedServer(object):
         if not endingwith==None:
             if endwith in self.nologgingend:
                 self.nologgingend.remove(endingwith)
-    
+
     def serve(self,domain,page):
         virt_page = domain+"/"+page
         if virt_page in self.noserving:
             self.noserving.remove(virt_page)
-    
+
     def noserve(self,domain,page):
         virt_page = domain+"/"+page
         if not virt_page in self.noserving:
             self.noserving.append(virt_page)
-    
-    if Mako_imported==True:
-        def template_reload(self, current_dir):
-            lookup = TemplateLookup(directories=[os.path.join(current_dir,'templates')])
-            return lookup
-                
-        def serve_template(self, tmpl, **kwargs):
-            """ loads a template and renders it """
-            lookup = self.template_reload(current_dir)
-            tmpl = lookup.get_template(tmpl)
-            return tmpl.render(**kwargs)
-        
+
     def sysinfo(self):
         if os.name=="posix":
             (sysname, nodename, release, version, machine) = os.uname()
@@ -291,7 +271,6 @@ def config_init(config_location):
             "sessions": False,
             "php": False,
             "database_connections": False,
-            "mako_templates": False,
             "log": True
         }
         config_file_data["HTTP"] = {
@@ -604,8 +583,7 @@ def conf_update_print(new_conf,old_conf):
             "vhosts-enabled":"Virtual hosts are now",
             "php":"PHP is now",
             "log":"Logging is now",
-            "database_connections":"Database connections are now",
-            "mako_templates":"Mako templates are now"
+            "database_connections":"Database connections are now"
     }
     for data in options:
         if not new_conf[data]==old_conf[data]:
@@ -748,8 +726,6 @@ class WebInterface:
             if not isinstance(site_glo_data[virt_host]["db_conn_loc"], tuple):
                 db_folders = os.path.join("sites",vhosts(virt_host,conf))
                 site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
-        if Mako_imported==True and conf["mako_templates"]==True:
-            RedServ.lookup = RedServ.template_reload(current_dir) #template refresh
         
     ###Start
         filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
