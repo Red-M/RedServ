@@ -5,7 +5,7 @@
 #  - Add multiple ports for a single HTTP type (list or string can be put in the config)
 #  - Add custom 404 pages that can be made by the user.
 #  - Optimize
-#  - Investigate SSL further and see if we can get an A+ instead of A- on SSL labs
+#  - Investigate SSL further and see if we can get an A+ instead of A on SSL labs
 import cherrypy
 import os
 import sys

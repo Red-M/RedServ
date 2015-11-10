@@ -4,23 +4,64 @@
 
 import ssl
 import sys
+import os
+import sys
 from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
 from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
 
 from cherrypy import wsgiserver
 
+os.chdir('.' or sys.path[0])
+current_dir = os.path.join(os.getcwd(),os.sep.join(sys.argv[0].split(os.sep)[0:-1]))
+if current_dir.endswith("."):
+    current_dir = current_dir[0:-1]
+
 try:
-  from OpenSSL import SSL
+  import OpenSSL
 except ImportError:
   pass
 
 def fix(ssl_adapters):
     ciphers = (
-      'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:'
-      'ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+HIGH:'
-      'DH+HIGH:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+HIGH:RSA+3DES:!aNULL:'
-      '!eNULL:!EXPORT:!MD5:!DSS:!3DES:!DES:!RC4:!SSLv2:!PSK:!aECDH:!EDH-DSS-DES-CBC3-SHA:'
-      '!EDH-RSA-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA:@STRENGTH'
+    'EECDH+AESGCM',
+    'EDH+AESGCM',
+    'AES256+EECDH',
+    'AES256+EDH',
+    'ECDHE-RSA-AES128-GCM-SHA256',
+    'ECDHE-ECDSA-AES128-GCM-SHA256',
+    'ECDHE-RSA-AES256-GCM-SHA384',
+    'DHE-RSA-AES128-GCM-SHA256',
+    'DHE-DSS-AES128-GCM-SHA256',
+    'kEDH+AESGCM',
+    'ECDHE-RSA-AES128-SHA256',
+    'ECDHE-ECDSA-AES128-SHA256',
+    'ECDHE-RSA-AES128-SHA',
+    'ECDHE-ECDSA-AES128-SHA',
+    'ECDHE-RSA-AES256-SHA384',
+    'ECDHE-RSA-AES256-SHA',
+    'ECDH+AESGCM',
+    'DH+AESGCM:ECDH+AES256',
+    'DH+AES256',
+    'ECDH+AES128',
+    'DH+AES',
+    'ECDH+HIGH',
+    'DH+HIGH',
+    '!aNULL',
+    '!eNULL',
+    '!EXPORT',
+    '!MD5',
+    '!DSS',
+    '!CBC',
+    '!3DES',
+    '!DES',
+    '!RC4',
+    '!SSLv2',
+    '!PSK',
+    '!aECDH',
+    '!EDH-DSS-DES-CBC3-SHA',
+    '!EDH-RSA-DES-CBC3-SHA',
+    '!KRB5-DES-CBC3-SHA',
+    '@STRENGTH'
     )
 
     class BuiltinSsl(BuiltinSSLAdapter):
@@ -76,11 +117,13 @@ def fix(ssl_adapters):
 
       def get_context(self):
         """Return an SSL.Context from self attributes."""
-        c = SSL.Context(SSL.SSLv23_METHOD)
+        c = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
 
         # override:
-        c.set_options(SSL.OP_NO_COMPRESSION | SSL.OP_SINGLE_DH_USE | SSL.OP_NO_SSLv2 | SSL.OP_NO_SSLv3)
-        c.set_cipher_list(ciphers)
+        c.set_options(OpenSSL.SSL.OP_NO_COMPRESSION | OpenSSL.SSL.OP_SINGLE_DH_USE | OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
+        c.load_tmp_dh(os.path.join(current_dir,'util','tmp_dh_file'))
+        c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('prime256v1'))
+        c.set_cipher_list(':'.join(ciphers))
 
         c.use_privatekey_file(self.private_key)
         if self.certificate_chain:
