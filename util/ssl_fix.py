@@ -6,6 +6,7 @@ import ssl
 import sys
 import os
 import sys
+import subprocess
 from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
 from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
 
@@ -23,6 +24,8 @@ except ImportError:
 
 def fix(ssl_adapters):
     ciphers = (
+    'ECDHE-ECDSA-CHACHA20-POLY1305',
+    'ECDHE-RSA-CHACHA20-POLY1305',
     'EECDH+AESGCM',
     'EDH+AESGCM',
     'AES256+EECDH',
@@ -113,6 +116,7 @@ def fix(ssl_adapters):
       '''Mostly fine, except:
         * Secure Client-Initiated Renegotiation
         * no Forward Secrecy, SSL.OP_SINGLE_DH_USE could have helped but it didn't
+        * FS is now enabled. It simply required load_tmp_dh.
       '''
 
       def get_context(self):
@@ -121,6 +125,11 @@ def fix(ssl_adapters):
 
         # override:
         c.set_options(OpenSSL.SSL.OP_NO_COMPRESSION | OpenSSL.SSL.OP_SINGLE_DH_USE | OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
+        dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
+        if not os.path.exists(dh_key_file_loc):
+            print("INFO: Generating DH key for HTTPS. Please wait.")
+            subprocess.call(["openssl","dhparam","-out",dh_key_file_loc,"-noout","-rand","-","2048"], stderr=subprocess.PIPE)
+            print("INFO: HTTPS DH key generated at: "+dh_key_file_loc)
         c.load_tmp_dh(os.path.join(current_dir,'util','tmp_dh_file'))
         c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('prime256v1'))
         c.set_cipher_list(':'.join(ciphers))
