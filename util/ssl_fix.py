@@ -128,7 +128,7 @@ def fix(ssl_adapters):
         dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
         if not os.path.exists(dh_key_file_loc):
             print("INFO: Generating DH key for HTTPS. Please wait.")
-            subprocess.call(["openssl","dhparam","-out",dh_key_file_loc,"-noout","-rand","-","2048"], stderr=subprocess.PIPE)
+            p = subprocess.call(["openssl","dhparam","-out",dh_key_file_loc,"2048"], stderr=subprocess.PIPE)
             print("INFO: HTTPS DH key generated at: "+dh_key_file_loc)
         c.load_tmp_dh(os.path.join(current_dir,'util','tmp_dh_file'))
         c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('prime256v1'))
