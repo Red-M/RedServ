@@ -84,6 +84,9 @@ class RedServer(object):
     def test(self,out):
         print(out)
         
+    def get_config(self):
+        return(conf)
+        
     def default_error_page(self,**kwargs):
         cherrypy.response.headers['Content-Type'] = "text/plain"
         result = self.error_template % kwargs
@@ -1031,7 +1034,7 @@ def web_init():
         if sys.version_info < (3, 0):
             from util import ssl_fix
             from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
-            ssl_adapters = ssl_fix.fix(ssl_adapters)
+            ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
         else:
             from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:

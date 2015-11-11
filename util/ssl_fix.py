@@ -22,7 +22,7 @@ try:
 except ImportError:
   pass
 
-def fix(ssl_adapters):
+def fix(ssl_adapters,RedServ):
     ciphers = (
     'ECDHE-ECDSA-CHACHA20-POLY1305',
     'ECDHE-RSA-CHACHA20-POLY1305',
@@ -111,6 +111,47 @@ def fix(ssl_adapters):
 
     ssl_adapters['custom-ssl'] = BuiltinSsl
 
+    def pick_certificate(connection):
+        config = RedServ.get_config()
+        key = None
+        cert = None
+        #print(connection.get_servername()+": "+str(connection.get_servername() in config['HTTPS']['certificates']))
+        def certloader(config_data,hostname):
+            key = config_data[hostname]['key']
+            cert = config_data[hostname]['cert']
+            if 'ca_chain' in config_data[hostname]:
+                ca_chain = config_data[hostname]['ca_chain']
+            else:
+                ca_chain = None
+            return(key,cert,ca_chain)
+        try:
+            if 'certificates' in config['HTTPS']:
+                if connection.get_servername() in config['HTTPS']['certificates']:
+                    (key,cert,ca_chain) = certloader(config['HTTPS']['certificates'],connection.get_servername())
+                else:
+                    if 'wildcard-certificates' in config['HTTPS']:
+                        for cert_chain in config['HTTPS']['wildcard-certificates']:
+                            if cert_chain.startswith("*"):
+                                if connection.get_servername().endswith(cert_chain[1:]):
+                                    (key,cert,ca_chain) = certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                            if cert_chain.endswith("*"):
+                                if connection.get_servername().startswith(cert_chain[:-1]):
+                                    (key,cert,ca_chain) = certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                    else:
+                        (key,cert,ca_chain) = certloader(config['HTTPS']['certificates'],'default')
+        except KeyError:
+            pass
+        if not (key==None and cert==None):
+            nc = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
+            nc.set_options(OpenSSL.SSL.OP_NO_COMPRESSION | OpenSSL.SSL.OP_SINGLE_DH_USE | OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
+            nc.load_tmp_dh(os.path.join(current_dir,'util','tmp_dh_file'))
+            nc.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('prime256v1'))
+            nc.set_cipher_list(':'.join(ciphers))
+            nc.use_privatekey_file(os.path.join(current_dir,key))
+            if not ca_chain==None:
+                nc.load_verify_locations(os.path.join(current_dir,ca_chain))
+            nc.use_certificate_file(os.path.join(current_dir,cert))
+            connection.set_context(nc)
 
     class Pyopenssl(pyOpenSSLAdapter):
       '''Mostly fine, except:
@@ -138,6 +179,7 @@ def fix(ssl_adapters):
         if self.certificate_chain:
             c.load_verify_locations(self.certificate_chain)
         c.use_certificate_file(self.certificate)
+        c.set_tlsext_servername_callback(pick_certificate)
         return c
 
     ssl_adapters['custom-pyopenssl'] = Pyopenssl
