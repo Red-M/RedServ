@@ -47,10 +47,13 @@ def fix(ssl_adapters,RedServ):
     'DH+AES256',
     'ECDH+AES128',
     'DH+AES',
+    'ECDHE+HIGH',
     'ECDH+HIGH',
     'DH+HIGH',
+    'RSA+HIGH',
     '!aNULL',
     '!eNULL',
+    '!LOW',
     '!EXPORT',
     '!MD5',
     '!DSS',
@@ -63,8 +66,7 @@ def fix(ssl_adapters,RedServ):
     '!aECDH',
     '!EDH-DSS-DES-CBC3-SHA',
     '!EDH-RSA-DES-CBC3-SHA',
-    '!KRB5-DES-CBC3-SHA',
-    '@STRENGTH'
+    '!KRB5-DES-CBC3-SHA'
     )
 
     class BuiltinSsl(BuiltinSSLAdapter):
@@ -130,12 +132,12 @@ def fix(ssl_adapters,RedServ):
                 connection.set_tlsext_host_name(connection.get_servername().encode('utf-8'))
             return([b'http/1.0'])
         
-        def create_ssl_context(dhparams,ecdhparams,ciphers,privkey,ca_chain,cert):
+        def create_ssl_context(dhparams,ciphers,privkey,ca_chain,cert):
             c = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
-            c.set_options(OpenSSL.SSL.OP_NO_COMPRESSION | OpenSSL.SSL.OP_SINGLE_DH_USE | OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
+            c.set_options(OpenSSL.SSL.OP_NO_COMPRESSION | OpenSSL.SSL.OP_SINGLE_DH_USE | OpenSSL.SSL.OP_CIPHER_SERVER_PREFERENCE | OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
             c.load_tmp_dh(dhparams)
-            c.set_tmp_ecdh(ecdhparams)
-            c.set_cipher_list(ciphers)
+            c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('prime256v1'))
+            c.set_cipher_list(ciphers+':@STRENGTH')
             c.use_privatekey_file(privkey)
             if not ca_chain==None:
                 c.load_verify_locations(ca_chain)
@@ -177,7 +179,7 @@ def fix(ssl_adapters,RedServ):
             if not (key==None and cert==None):
                 if not ca_chain==None:
                     ca_chain = os.path.join(current_dir,ca_chain)
-                nc = create_ssl_context(os.path.join(current_dir,'util','tmp_dh_file'),OpenSSL.crypto.get_elliptic_curve('prime256v1'),':'.join(ciphers),os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert))
+                nc = create_ssl_context(os.path.join(current_dir,'util','tmp_dh_file'),':'.join(ciphers),os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert))
                 if connection.total_renegotiations()>3:
                     connection.shutdown()
                     connection.close()
@@ -193,7 +195,7 @@ def fix(ssl_adapters,RedServ):
             print("INFO: HTTPS DH key generated at: "+dh_key_file_loc)
         if not self.certificate_chain:
             self.certificate_chain = None
-        c = create_ssl_context(dh_key_file_loc,OpenSSL.crypto.get_elliptic_curve('prime256v1'),':'.join(ciphers),self.private_key,self.certificate_chain,self.certificate)
+        c = create_ssl_context(dh_key_file_loc,':'.join(ciphers),self.private_key,self.certificate_chain,self.certificate)
         c.set_tlsext_servername_callback(pick_certificate)
         return c
 
