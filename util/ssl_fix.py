@@ -8,7 +8,10 @@ import os
 import sys
 import subprocess
 from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
-from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
+if sys.version_info < (3, 0):
+    from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
+else:
+    from util.ssl_pyopenssl import pyOpenSSLAdapter
 
 from cherrypy import wsgiserver
 
@@ -149,6 +152,10 @@ def fix(ssl_adapters,RedServ):
             config = RedServ.get_config()
             key = None
             cert = None
+            if not connection.get_servername()==None:
+                hostname_recieved = connection.get_servername()
+            else:
+                hostname_recieved = "default"
 
             def certloader(config_data,hostname):
                 key = config_data[hostname]['key']
@@ -161,16 +168,16 @@ def fix(ssl_adapters,RedServ):
 
             try:
                 if 'certificates' in config['HTTPS']:
-                    if connection.get_servername() in config['HTTPS']['certificates']:
-                        (key,cert,ca_chain) = certloader(config['HTTPS']['certificates'],connection.get_servername())
+                    if hostname_recieved in config['HTTPS']['certificates']:
+                        (key,cert,ca_chain) = certloader(config['HTTPS']['certificates'],hostname_recieved)
                     else:
                         if 'wildcard-certificates' in config['HTTPS']:
                             for cert_chain in config['HTTPS']['wildcard-certificates']:
                                 if cert_chain.startswith("*"):
-                                    if connection.get_servername().endswith(cert_chain[1:]):
+                                    if hostname_recieved.endswith(cert_chain[1:]):
                                         (key,cert,ca_chain) = certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
                                 if cert_chain.endswith("*"):
-                                    if connection.get_servername().startswith(cert_chain[:-1]):
+                                    if hostname_recieved.startswith(cert_chain[:-1]):
                                         (key,cert,ca_chain) = certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
                         else:
                             (key,cert,ca_chain) = certloader(config['HTTPS']['certificates'],'default')
@@ -184,8 +191,8 @@ def fix(ssl_adapters,RedServ):
                     connection.shutdown()
                     connection.close()
                     RedServ.debugger(3,"Nuked an SSL conn. Too many renegotiations.")
-                if not connection.get_servername()==None:
-                    connection.set_tlsext_host_name(connection.get_servername().encode('utf-8'))
+                if not hostname_recieved==None:
+                    connection.set_tlsext_host_name(hostname_recieved.encode('utf-8'))
                 connection.set_context(nc)
         
         dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
