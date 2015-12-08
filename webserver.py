@@ -389,8 +389,12 @@ def SSL_cert_gen(nodename,dir):
             cert.set_issuer(cert.get_subject())
             cert.set_pubkey(k)
             cert.sign(k, 'sha256')
-            open(C_F, "wt").write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
-            open(K_F, "wt").write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
+            if sys.version_info < (3, 0):
+                file_mode = "wt"
+            else:
+                file_mode = "wb"
+            open(C_F, file_mode).write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
+            open(K_F, file_mode).write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, k))
     else:
         RedServ.debugger(0, "No SSL certs, no SSL support and RedServ has HTTPS turned on. Terminating.")
         exit()
@@ -1036,7 +1040,9 @@ def web_init():
             from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
             ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
         else:
+            from util import ssl_fix
             from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
+            ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if not (os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert"])) and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert_private_key"]))):
             SSL_cert_gen(RedServ.sysinfo(),os.path.abspath("certs"))
@@ -1058,13 +1064,14 @@ def web_init():
         RedServ.server1.ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
         if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
             conf["HTTPS"]["CA_cert"] = None
-        if os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])) and not conf["HTTPS"]["CA_cert"]==None:
-            RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,conf["HTTPS"]["CA_cert"]))
+        if not conf["HTTPS"]["CA_cert"]==None:
+            if os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])):
+                RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,conf["HTTPS"]["CA_cert"]))
         RedServ.server1.subscribe()
     if conf["HTTP"]["enabled"]==True:
         RedServ.server2 = cherrypy._cpserver.Server()
         RedServ.server2.socket_port=STDPORT
-        RedServ.server2.socket_host="0.0.0.0"
+        RedServ.server2.socket_host='0.0.0.0'
         RedServ.server2.thread_pool=conf["HTTPS"]["thread_pool"]
         RedServ.server2.socket_queue_size=conf["HTTP"]["socket_queue"]
         RedServ.server2.thread_pool_max=-1
