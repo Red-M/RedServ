@@ -1060,7 +1060,6 @@ def web_init():
         RedServ.server1.shutdown_timeout=1
         RedServ.server1.socket_timeout=3
         #RedServ.server1.statistics=True
-        RedServ.server1.ssl_module = 'custom-pyopenssl'
         RedServ.server1.ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
         RedServ.server1.ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
         if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
