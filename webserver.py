@@ -208,8 +208,14 @@ class RedServer(object):
             (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
         return(nodename)
     
-    def basic_auth(self, realm, users):
-        checkpassword = cherrypy.lib.auth_basic.checkpassword_dict(users)
+    def basic_auth(self, realm, users,customcheckpassword=None,password_salt=None):
+        if customcheckpassword==None:
+            checkpassword = cherrypy.lib.auth_basic.checkpassword_dict(users)
+        else:
+            if password_salt==None:
+                checkpassword = customcheckpassword(users)
+            else:
+                checkpassword = customcheckpassword(users,password_salt)
         cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="'+realm+'"'
         try:
             cherrypy.lib.auth_basic.basic_auth(realm, checkpassword)
@@ -751,7 +757,9 @@ class WebInterface:
             "local_error_pages":local_error_pages,
             "data": datsieve,
             "bad":bad,
-            "params":params
+            "params":params,
+            "global_site_data":site_shared_data,
+            "site_data":site_glo_data[virt_host]
             }
             try:
                 (sievedata,sieve_cache) = sieve(sievedata,sieve_cache) #pre-page render sieve
