@@ -657,7 +657,7 @@ def conf_reload(conf):
             RedServ.http_port = STDPORT
             RedServ.http_ports = conf["HTTP"]["ports"]
             print("Started HTTP on: "+new_http_ports[:-2])
-        if not new_conf["HTTPS"]["ports"]==old_conf["HTTPS"]["ports"]:
+        if not new_conf["HTTPS"]["ports"]==old_conf["HTTPS"]["ports"] and False:
             new_https_ports = ""
             old_https_ports = ""
             removed_any_https_ports = False
