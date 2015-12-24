@@ -631,31 +631,68 @@ def conf_reload(conf):
     if not old_time==config_cache[1]:
         new_conf["HTTP"]["enabled"] = old_conf["HTTP"]["enabled"]
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
-        if not new_conf["HTTP"]["port"]==old_conf["HTTP"]["port"]:
-            print("Please restart RedServ to change port on HTTP to "+str(new_conf["HTTP"]["port"]))
-            #RedServ.server2.unsubscribe()
-            #RedServ.server2.stop()
-            #RedServ.server2.socket_port=new_conf["HTTP"]["port"]
-            #RedServ.server2.start()
-            #RedServ.server2.subscribe()
-            #print(dir(RedServ.server2))
-            #cherrypy.engine.restart()
-        if not new_conf["HTTPS"]["port"]==old_conf["HTTPS"]["port"]:
-            #RedServ.server1.unsubscribe()
-            ##RedServ.server1.stop()
-            #RedServ.server1.thread_pool=new_conf["HTTPS"]["thread_pool"]
-            #RedServ.server1.socket_queue_size=new_conf["HTTPS"]["socket_queue"]
-            #RedServ.server1.socket_port=new_conf["HTTPS"]["port"]
-            #if new_conf["HTTPS"]["CA_cert"]=="default-ca.pem" or new_conf["HTTPS"]["CA_cert"]=="":
-            #    new_conf["HTTPS"]["CA_cert"] = None
-            #if os.path.exists(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"])) and not new_conf["HTTPS"]["CA_cert"]==None:
-            #    RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"]))
-            #RedServ.server1.subscribe()
-            #RedServ.server1.start()
-            #cherrypy.engine.restart()
-            print("Please restart RedServ to change port on HTTPS to "+str(new_conf["HTTPS"]["port"]))
-        #new_conf["HTTP"]["port"] = STDPORT
-        #new_conf["HTTPS"]["port"] = SSLPORT
+        if not new_conf["HTTP"]["ports"]==old_conf["HTTP"]["ports"] and False: #disabled for now, has issues wherein the entire web server locks up or new ports don't start.
+            new_http_ports = ""
+            old_http_ports = ""
+            for port in RedServ.servers["HTTP"]:
+                if not port in new_conf["HTTP"]["ports"]:
+                    RedServ.servers["HTTP"][port].stop()
+                    old_http_ports = old_http_ports+str(port)+", "
+            print("Stopped http on ports: "+old_http_ports[:-2])
+            for port in new_conf["HTTP"]["ports"]:
+                if not port in old_conf["HTTP"]["ports"]:
+                    RedServ.servers["HTTP"][port] = cherrypy._cpserver.Server()
+                    RedServ.servers["HTTP"][port].socket_port=port
+                    RedServ.servers["HTTP"][port].socket_host='0.0.0.0'
+                    RedServ.servers["HTTP"][port].thread_pool=new_conf["HTTP"]["thread_pool"]
+                    RedServ.servers["HTTP"][port].socket_queue_size=new_conf["HTTP"]["socket_queue"]
+                    RedServ.servers["HTTP"][port].thread_pool_max=-1
+                    RedServ.servers["HTTP"][port].shutdown_timeout=1
+                    RedServ.servers["HTTP"][port].socket_timeout=3
+                    #RedServ.servers["HTTP"][port].statistics=True
+                    RedServ.servers["HTTP"][port].subscribe()
+                    RedServ.servers["HTTP"][port].start()
+                    new_http_ports = new_http_ports+str(port)+", "
+            STDPORT = conf["HTTP"]["ports"][0]
+            RedServ.http_port = STDPORT
+            RedServ.http_ports = conf["HTTP"]["ports"]
+            print("Started HTTP on: "+new_http_ports[:-2])
+        if not new_conf["HTTPS"]["ports"]==old_conf["HTTPS"]["ports"]:
+            new_https_ports = ""
+            old_https_ports = ""
+            removed_any_https_ports = False
+            for port in RedServ.servers["HTTPS"]:
+                if not port in new_conf["HTTPS"]["ports"]:
+                    removed_any_https_ports = True
+                    RedServ.servers["HTTPS"][port].stop()
+                    old_https_ports = old_https_ports+str(port)+", "
+            if removed_any_https_ports==True:
+                print("Stopped HTTPS on ports: "+old_https_ports[:-2])
+            for port in new_conf["HTTPS"]["ports"]:
+                if not port in old_conf["HTTPS"]["ports"]:
+                    RedServ.servers["HTTPS"][port] = cherrypy._cpserver.Server()
+                    RedServ.servers["HTTPS"][port].socket_port=port
+                    RedServ.servers["HTTPS"][port].socket_host='0.0.0.0'
+                    RedServ.servers["HTTPS"][port].thread_pool=new_conf["HTTPS"]["thread_pool"]
+                    RedServ.servers["HTTPS"][port].socket_queue_size=new_conf["HTTPS"]["socket_queue"]
+                    RedServ.servers["HTTPS"][port].thread_pool_max=-1
+                    RedServ.servers["HTTPS"][port].shutdown_timeout=1
+                    RedServ.servers["HTTPS"][port].socket_timeout=3
+                    #RedServ.servers["HTTPS"][port].statistics=True
+                    RedServ.servers["HTTPS"][port].ssl_module = 'custom-pyopenssl'
+                    RedServ.servers["HTTPS"][port].ssl_certificate = os.path.join(current_dir,new_conf["HTTPS"]["cert"])
+                    RedServ.servers["HTTPS"][port].ssl_private_key = os.path.join(current_dir,new_conf["HTTPS"]["cert_private_key"])
+                    if new_conf["HTTPS"]["CA_cert"]=="default-ca.pem" or new_conf["HTTPS"]["CA_cert"]=="":
+                        new_conf["HTTPS"]["CA_cert"] = None
+                    if not new_conf["HTTPS"]["CA_cert"]==None:
+                        if os.path.exists(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"])):
+                            RedServ.servers["HTTPS"][port].ssl_certificate_chain = str(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"]))
+                    RedServ.servers["HTTPS"][port].subscribe()
+                    new_https_ports = new_https_ports+str(port)+", "
+            SSLPORT = conf["HTTPS"]["ports"][0]
+            RedServ.https_ports = conf["HTTPS"]["ports"]
+            RedServ.https_port = SSLPORT
+            print("Started HTTPS on: "+new_https_ports[:-2])
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
         conf_update_print(new_conf,old_conf)
