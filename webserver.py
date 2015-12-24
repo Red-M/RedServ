@@ -52,6 +52,9 @@ if current_dir.endswith(".zip"):
     exed = True
 site_glo_data = {}
 site_shared_data = {}
+python_page_cache = {}
+sieve_cache = {}
+config_cache = []
 
 class RedServer(object):
     def __init__(self):
@@ -72,12 +75,18 @@ class RedServer(object):
         self.basicauthstart = []
         self.basicauthend = []
         
+        self.servers = {}
+        self.servers["HTTPS"] = {}
+        self.servers["HTTP"] = {}
+        
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.5.1_beta"
+        self._version_string_ = "1.6_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
+        self.http_ports = []
         self.https_port = 8081
+        self.https_ports = []
         os.chdir('.' or sys.path[0])
         self.current_dir = os.path.abspath('.')
 
@@ -91,15 +100,21 @@ class RedServer(object):
         cherrypy.response.headers['Content-Type'] = "text/plain"
         result = self.error_template % kwargs
         return(result.replace("\n\n\n","\n"))
-        
+    
+    def check_https(self,cherrypy):
+        if cherrypy.request.local.port in self.https_ports:
+            return(True)
+        else:
+            return(False)
+    
     def force_https(self,cherrypy,url,redirect=True):
         if redirect==True:
-            if not cherrypy.request.local.port==self.https_port:
+            if not cherrypy.request.local.port in self.https_ports:
                 if not url.startswith("https://"):
                     url = "https://"+url
                 raise(cherrypy.HTTPRedirect(url))
-            else:
-                return("")
+            #else:
+            #    return("")
         #add reserv based message saying to use https here.
             
     
@@ -287,14 +302,14 @@ def config_init(config_location):
             "enabled":False,
             "thread_pool":50,
             "socket_queue":50,
-            "port":8081
+            "ports":[8081]
         }
         config_file_data["HTTPS"] = {
             "reverse_proxied":False,
             "enabled":False,
             "thread_pool":50,
             "socket_queue":50,
-            "port":8081,
+            "ports":[8082],
             "CA_cert":"default-ca.pem",
             "cert":"cert.crt",
             "cert_private_key":"privkey.key"
@@ -784,6 +799,8 @@ class WebInterface:
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
             local_error_pages = sievedata['local_error_pages']
+            site_shared_data = sievedata['global_site_data']
+            site_glo_data[virt_host] = sievedata['site_data']
             RedServ.error_pages[virt_host] = local_error_pages
             cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
             list = sievedata['URI'].split("/")
@@ -991,14 +1008,13 @@ def web_init():
             os.mkdir(os.path.abspath(data))
     global RedServ
     RedServ = RedServer()
+    RedServ.debugger(3,"CherryPy version: "+cherrypy.__version__+" HTTP server version: "+cherrypy.server.httpserver.version)
     cherrypy.server.httpserver.version = RedServ._version_
     cherrypy.__version__ = RedServ._version_
     RedServ.debugger(3,"Starting RedServ version: "+RedServ._version_string_)
     # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
     conflocation = os.path.join(current_dir,"config")
     config_init(conflocation)
-    global config_cache
-    config_cache = []
     config_cache.append(json.load(open(conflocation)))
     config_cache.append(os.path.getmtime(conflocation))
     global conf
@@ -1039,9 +1055,13 @@ def web_init():
     cherrypy.server.stop()
 
     global STDPORT
-    STDPORT = conf["HTTP"]["port"]
+    STDPORT = conf["HTTP"]["ports"][0]
+    RedServ.http_port = STDPORT
+    RedServ.http_ports = conf["HTTP"]["ports"]
     global SSLPORT
-    SSLPORT = conf["HTTPS"]["port"]
+    SSLPORT = conf["HTTPS"]["ports"][0]
+    RedServ.https_ports = conf["HTTPS"]["ports"]
+    RedServ.https_port = SSLPORT
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if sys.version_info < (3, 0):
             from util import ssl_fix
@@ -1058,42 +1078,39 @@ def web_init():
             conf["HTTPS"]["cert"] = os.path.join('certs','cert.pem')
         if conf["HTTPS"]["cert_private_key"]=="":
             conf["HTTPS"]["cert_private_key"] = os.path.join('certs','privkey.pem')
-        RedServ.server1 = cherrypy._cpserver.Server()
-        RedServ.server1.socket_port=SSLPORT
-        RedServ.server1.socket_host='0.0.0.0'
-        RedServ.server1.thread_pool=conf["HTTPS"]["thread_pool"]
-        RedServ.server1.socket_queue_size=conf["HTTPS"]["socket_queue"]
-        RedServ.server1.thread_pool_max=-1
-        RedServ.server1.shutdown_timeout=1
-        RedServ.server1.socket_timeout=3
-        #RedServ.server1.statistics=True
-        RedServ.server1.ssl_module = 'custom-pyopenssl'
-        RedServ.server1.ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
-        RedServ.server1.ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
-        if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
-            conf["HTTPS"]["CA_cert"] = None
-        if not conf["HTTPS"]["CA_cert"]==None:
-            if os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])):
-                RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,conf["HTTPS"]["CA_cert"]))
-        RedServ.server1.subscribe()
+        for port in RedServ.https_ports:
+            RedServ.servers["HTTPS"][port] = cherrypy._cpserver.Server()
+            RedServ.servers["HTTPS"][port].socket_port=port
+            RedServ.servers["HTTPS"][port].socket_host='0.0.0.0'
+            RedServ.servers["HTTPS"][port].thread_pool=conf["HTTPS"]["thread_pool"]
+            RedServ.servers["HTTPS"][port].socket_queue_size=conf["HTTPS"]["socket_queue"]
+            RedServ.servers["HTTPS"][port].thread_pool_max=-1
+            RedServ.servers["HTTPS"][port].shutdown_timeout=1
+            RedServ.servers["HTTPS"][port].socket_timeout=3
+            #RedServ.servers["HTTPS"][port].statistics=True
+            RedServ.servers["HTTPS"][port].ssl_module = 'custom-pyopenssl'
+            RedServ.servers["HTTPS"][port].ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
+            RedServ.servers["HTTPS"][port].ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
+            if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
+                conf["HTTPS"]["CA_cert"] = None
+            if not conf["HTTPS"]["CA_cert"]==None:
+                if os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])):
+                    RedServ.servers["HTTPS"][port].ssl_certificate_chain = str(os.path.join(current_dir,conf["HTTPS"]["CA_cert"]))
+            RedServ.servers["HTTPS"][port].subscribe()
     if conf["HTTP"]["enabled"]==True:
-        RedServ.server2 = cherrypy._cpserver.Server()
-        RedServ.server2.socket_port=STDPORT
-        RedServ.server2.socket_host='0.0.0.0'
-        RedServ.server2.thread_pool=conf["HTTPS"]["thread_pool"]
-        RedServ.server2.socket_queue_size=conf["HTTP"]["socket_queue"]
-        RedServ.server2.thread_pool_max=-1
-        RedServ.server2.shutdown_timeout=1
-        RedServ.server2.socket_timeout=3
-        #RedServ.server2.statistics=True
-        RedServ.server2.subscribe()
-    
-    global python_page_cache
-    python_page_cache = {}
+        for port in RedServ.http_ports:
+            RedServ.servers["HTTP"][port] = cherrypy._cpserver.Server()
+            RedServ.servers["HTTP"][port].socket_port=port
+            RedServ.servers["HTTP"][port].socket_host='0.0.0.0'
+            RedServ.servers["HTTP"][port].thread_pool=conf["HTTP"]["thread_pool"]
+            RedServ.servers["HTTP"][port].socket_queue_size=conf["HTTP"]["socket_queue"]
+            RedServ.servers["HTTP"][port].thread_pool_max=-1
+            RedServ.servers["HTTP"][port].shutdown_timeout=1
+            RedServ.servers["HTTP"][port].socket_timeout=3
+            #RedServ.servers["HTTP"][port].statistics=True
+            RedServ.servers["HTTP"][port].subscribe()
     
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
-    global sieve_cache
-    sieve_cache = {}
     sieve_cache["global"] = []
     if os.path.exists(sievepath):
         sieve_cache["global"].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
@@ -1101,9 +1118,15 @@ def web_init():
     
     port_statuses = "Web server starting up: "
     if conf["HTTP"]["enabled"]==True:
-        port_statuses = port_statuses+"HTTP port: "+str(RedServ.server2.socket_port)+" "
+        port_statuses = port_statuses+"HTTP ports: "
+        for port in RedServ.http_ports:
+            port_statuses = port_statuses+str(port)+", "
+        port_statuses = port_statuses[:-2]+" "
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
-        port_statuses = port_statuses+"HTTPS port: "+str(RedServ.server1.socket_port)
+        port_statuses = port_statuses+"HTTPS ports: "
+        for port in RedServ.https_ports:
+            port_statuses = port_statuses+str(port)+", "
+        port_statuses = port_statuses[:-2]
     RedServ.debugger(3,port_statuses)
     if not os.name=="nt":
         cherrypy.engine.signals.subscribe()
@@ -1111,5 +1134,5 @@ def web_init():
     RedServ.debugger(3,"Web server init finished\nYou are free for take off!") # yay!
     cherrypy.engine.block()
 
-
-web_init()
+if __name__ == '__main__':
+    web_init()
