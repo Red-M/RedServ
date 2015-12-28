@@ -285,35 +285,41 @@ class staticfileserve(Exception):
          self.value = value
      def __str__(self):
          return repr(self.value)
- 
+
+def get_config_default():
+    config_file_data = {
+        "default_404": True,
+        "vhosts-enabled": True,
+        "vhost-lookup": "domains",
+        "sessions": False,
+        "php": False,
+        "database_connections": False,
+        "page_response_check": 1,
+        "page_request_timeout": 30,
+        "log": True
+    }
+    config_file_data["HTTP"] = {
+        "reverse_proxied":False,
+        "enabled":False,
+        "thread_pool":50,
+        "socket_queue":50,
+        "ports":[8081]
+    }
+    config_file_data["HTTPS"] = {
+        "reverse_proxied":False,
+        "enabled":False,
+        "thread_pool":50,
+        "socket_queue":50,
+        "ports":[8082],
+        "CA_cert":"default-ca.pem",
+        "cert":"cert.crt",
+        "cert_private_key":"privkey.key"
+    }
+    return(config_file_data)
+
 def config_init(config_location):
     if not os.path.exists(config_location):
-        config_file_data = {
-            "default_404": True,
-            "vhosts-enabled": True,
-            "vhost-lookup": "domains",
-            "sessions": False,
-            "php": False,
-            "database_connections": False,
-            "log": True
-        }
-        config_file_data["HTTP"] = {
-            "reverse_proxied":False,
-            "enabled":False,
-            "thread_pool":50,
-            "socket_queue":50,
-            "ports":[8081]
-        }
-        config_file_data["HTTPS"] = {
-            "reverse_proxied":False,
-            "enabled":False,
-            "thread_pool":50,
-            "socket_queue":50,
-            "ports":[8082],
-            "CA_cert":"default-ca.pem",
-            "cert":"cert.crt",
-            "cert_private_key":"privkey.key"
-        }
+        config_file_data = get_config_default()
         open(config_location, 'w').write(json.dumps(config_file_data, sort_keys=True,indent=2, separators=(',', ': ')))
 
 def config(config_location):
@@ -631,7 +637,7 @@ def conf_reload(conf):
     if not old_time==config_cache[1]:
         new_conf["HTTP"]["enabled"] = old_conf["HTTP"]["enabled"]
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
-        if not new_conf["HTTP"]["ports"]==old_conf["HTTP"]["ports"] and False: #disabled for now, has issues wherein the entire web server locks up or new ports don't start.
+        if (not new_conf["HTTP"]["ports"]==old_conf["HTTP"]["ports"]) and False: #disabled for now, has issues wherein the entire web server locks up or new ports don't start.
             new_http_ports = ""
             old_http_ports = ""
             for port in RedServ.servers["HTTP"]:
@@ -657,7 +663,7 @@ def conf_reload(conf):
             RedServ.http_port = STDPORT
             RedServ.http_ports = conf["HTTP"]["ports"]
             print("Started HTTP on: "+new_http_ports[:-2])
-        if not new_conf["HTTPS"]["ports"]==old_conf["HTTPS"]["ports"] and False:
+        if (not new_conf["HTTPS"]["ports"]==old_conf["HTTPS"]["ports"]) and False:
             new_https_ports = ""
             old_https_ports = ""
             removed_any_https_ports = False
@@ -1079,9 +1085,9 @@ def web_init():
         'tools.sessions.on':conf["sessions"],
         'tools.sessions.locking':'explicit',
         #'tools.sessions.secure':conf["sessions"],
-        'response.timeout': 300,
+        'response.timeout': conf["page_request_timeout"],
         'engine.timeout_monitor.on':True,
-        'engine.timeout_monitor.frequency':60
+        'engine.timeout_monitor.frequency':conf["page_response_check"]
     }}
     cherrypy.config.update(global_conf)
     web_interface = WebInterface()
