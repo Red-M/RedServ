@@ -786,6 +786,10 @@ def logging(logline,logtype,*extra):
                 list = extra[2]
                 paramlines = extra[3]
                 this_page = virt_host+"/"+"/".join(list)
+                proto = "http"
+                if RedServ.check_https(cherrypy)==True:
+                    proto = proto+"s"
+                proto = proto+"://"
                 no_log = False # varible to decide to log or to not to log.
                 if len(RedServ.nologgingstart)>0:
                     for data in RedServ.nologgingstart:
@@ -805,7 +809,7 @@ def logging(logline,logtype,*extra):
                 if no_log==False:
                     logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
                     str(cherrypy.request.remote.ip)+"	["+cherrypy.request.method+"("+str(cherrypy.response.status)+\
-                    ")]	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
+                    ")]	["+proto+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
                     str(cherrypy.request.headers)+"	"+str(cherrypy.request.body.params)+"\n"
                 
             if logtype == 2: #bad vhost log line
