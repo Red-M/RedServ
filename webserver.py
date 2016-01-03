@@ -305,7 +305,7 @@ class RedServer(object):
         else:
             return(self.staticfileserve(cherrypy.lib.static.serve_download(filename)))
 
-class CustomFileSystemEventHandler(object):
+class PageFileEventHandler(object):
 
     def on_any_event(self, event):
         """Catch-all event handler.
@@ -462,6 +462,40 @@ class CustomFileSystemEventHandler(object):
                             python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
                             python_page_cache[filename].append(page_time)
 
+class ConfigFileEventHandler(object):
+
+    def on_any_event(self, event):
+        """Catch-all event handler.
+
+        :param event:
+            The event object representing the file system event.
+        :type event:
+            :class:`FileSystemEvent`
+        """
+
+    def on_moved(self, event):
+        pass
+
+    def on_created(self, event):
+        global conf
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            if event.src_path.split(os.sep)[-1]=="config":
+                #RedServ.debugger(3,"Created: "+event.src_path)
+                if not os.stat(event.src_path).st_size==0:
+                    conf = conf_reload(conf)
+
+    def on_deleted(self, event):
+        pass
+
+    def on_modified(self, event):
+        global conf
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            if event.src_path.split(os.sep)[-1]=="config":
+                #RedServ.debugger(3,"Changed: "+event.src_path)
+                if not os.stat(event.src_path).st_size==0:
+                    conf = conf_reload(conf)
 
 class staticfileserve(Exception):
      def __init__(self, value):
@@ -1213,7 +1247,7 @@ class WebInterface:
     default.exposed = True
         
 
-def web_init(observer):
+def web_init(page_observer,config_observer):
     print("INFO: Initialising web server...")
     from cherrypy._cpnative_server import CPHTTPServer
     cherrypy.server.httpserver = CPHTTPServer(cherrypy.server)
@@ -1234,8 +1268,9 @@ def web_init(observer):
             os.mkdir(os.path.abspath(data))
     global RedServ
     RedServ = RedServer()
-    observer.start()
-    RedServ.debugger(3,"Started file watchdog.")
+    page_observer.start()
+    config_observer.start()
+    RedServ.debugger(3,"Started file watchdogs.")
     RedServ.debugger(3,"CherryPy version: "+cherrypy.__version__+" HTTP server version: "+cherrypy.server.httpserver.version)
     cherrypy.server.httpserver.version = RedServ._version_
     cherrypy.__version__ = RedServ._version_
@@ -1364,21 +1399,35 @@ def web_init(observer):
 
 if __name__ == '__main__':
     watchdog_path = os.path.join(current_dir,"pages")
-    custom_event_handler = CustomFileSystemEventHandler()
-    event_handler = watchdog_file_event_handler()
-    event_handler.on_any_event = custom_event_handler.on_any_event
-    event_handler.on_moved = custom_event_handler.on_moved
-    event_handler.on_created = custom_event_handler.on_created
-    event_handler.on_deleted = custom_event_handler.on_deleted
-    event_handler.on_modified = custom_event_handler.on_modified
-    observer = watchdog_observer()
-    observer.schedule(event_handler, watchdog_path, recursive=True)
+    page_file_event_handler = PageFileEventHandler()
+    page_event_handler = watchdog_file_event_handler()
+    page_event_handler.on_any_event = page_file_event_handler.on_any_event
+    page_event_handler.on_moved = page_file_event_handler.on_moved
+    page_event_handler.on_created = page_file_event_handler.on_created
+    page_event_handler.on_deleted = page_file_event_handler.on_deleted
+    page_event_handler.on_modified = page_file_event_handler.on_modified
+    page_page_observer = watchdog_observer()
+    page_observer = watchdog_observer()
+    page_observer.schedule(page_event_handler, watchdog_path, recursive=True)
+
+    config_file_event_handler = ConfigFileEventHandler()
+    config_event_handler = watchdog_file_event_handler()
+    config_event_handler.on_any_event = config_file_event_handler.on_any_event
+    config_event_handler.on_moved = config_file_event_handler.on_moved
+    config_event_handler.on_created = config_file_event_handler.on_created
+    config_event_handler.on_deleted = config_file_event_handler.on_deleted
+    config_event_handler.on_modified = config_file_event_handler.on_modified
+    config_observer = watchdog_observer()
+    config_observer.schedule(config_event_handler, current_dir, recursive=False)
     try:
-        web_init(observer)
+        web_init(page_observer,config_observer)
     except Exception as e:
         type_, value_, traceback_ = sys.exc_info()
         trace = traceback.format_exception(type_, value_, traceback_)
         print("CRITICAL: "+trace)
     finally:
-        observer.stop()
-    observer.join()
+        page_observer.stop()
+        config_observer.stop()
+    page_observer.join()
+    config_observer.join()
+    exit()
