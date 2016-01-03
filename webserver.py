@@ -949,12 +949,12 @@ class WebInterface:
         global cherrypy
         global site_glo_data
         global site_shared_data
-        global conf
         global python_page_cache
         global sieve_cache
         global STDPORT
         global SSLPORT
-        conf = conf_reload(conf)
+        #global conf
+        #conf = conf_reload(conf)
         
         RedServ.http_port = STDPORT
         RedServ.https_port = SSLPORT
@@ -1424,7 +1424,7 @@ if __name__ == '__main__':
     except Exception as e:
         type_, value_, traceback_ = sys.exc_info()
         trace = traceback.format_exception(type_, value_, traceback_)
-        print("CRITICAL: "+trace)
+        print("CRITICAL: "+"\n".join(trace))
     finally:
         page_observer.stop()
         config_observer.stop()
