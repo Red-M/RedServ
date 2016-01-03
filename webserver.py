@@ -22,6 +22,7 @@ import urllib,urllib2
 import re
 import traceback
 import cgi
+import gc
 from watchdog.observers import Observer as watchdog_observer
 from watchdog.events import FileSystemEventHandler as watchdog_file_event_handler
 try:
@@ -115,6 +116,10 @@ class RedServer(object):
         else:
             return(False)
     
+    def gc_collect(self):
+        #self.debugger(3,str(gc.collect()))
+        gc.collect()
+    
     def test(self,out):
         print(out)
         
@@ -178,6 +183,7 @@ class RedServer(object):
             return(e)
         
     def debugger(self,lvl=5,message=""):
+        message = str(message)
         if lvl==0:
             lvl = "FATAL"
         if lvl==1:
@@ -1279,6 +1285,7 @@ def web_init(page_observer,config_observer):
     cherrypy.server.httpserver.version = RedServ._version_
     cherrypy.__version__ = RedServ._version_
     RedServ.debugger(3,"Starting RedServ version: "+RedServ._version_string_)
+    RedServ.start_background_service("__internal__RedServ__service__mem_clean_up",30,RedServ.gc_collect)
     # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
     conflocation = os.path.join(current_dir,"config")
     config_init(conflocation)
