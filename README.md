@@ -8,6 +8,7 @@ Requirements:
 - Python 2.7+
 - Cherrypy3
 - Requests
+- Watchdog
 
 Optional:
 =========
