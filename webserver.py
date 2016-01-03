@@ -2,10 +2,9 @@
 #Help from Luke Rogers
 
 # TODO:
-#  - Add multiple ports for a single HTTP type (list or string can be put in the config)
-#  - Add custom 404 pages that can be made by the user.
-#  - Optimize
+#  - Sieve and page caches need to be replaced with a backgroundtask using: cherrypy.process.plugins.BackgroundTask(interval, function, args=[], kwargs={}, bus=None)
 #  - Investigate SSL further and see if we can get an A+ instead of A on SSL labs
+#  - Optimize
 import cherrypy
 import os
 import sys
@@ -23,6 +22,8 @@ import urllib,urllib2
 import re
 import traceback
 import cgi
+from watchdog.observers import Observer as watchdog_observer
+from watchdog.events import FileSystemEventHandler as watchdog_file_event_handler
 try:
     import OpenSSL
     SSL_imported = True
@@ -79,9 +80,11 @@ class RedServer(object):
         self.servers["HTTPS"] = {}
         self.servers["HTTP"] = {}
         
+        self.background_services = {}
+        
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.6_beta"
+        self._version_string_ = "1.6.1_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -89,7 +92,29 @@ class RedServer(object):
         self.https_ports = []
         os.chdir('.' or sys.path[0])
         self.current_dir = os.path.abspath('.')
-
+    
+    def start_background_service(self,service_name,interval,function,args=[],kwargs={},bus=None):
+        if not service_name in self.background_services:
+            try:
+                self.background_services[service_name] = cherrypy.process.plugins.BackgroundTask(interval,function,args,kwargs,bus)
+                self.background_services[service_name].start()
+                return(self.background_services[service_name])
+            except Exception as e:
+                RedServ.debugger(1,self.trace_back(False))
+                del self.background_services[service_name]
+        else:
+            return(False)
+    
+    def stop_background_service(self,service_name):
+        if service_name in self.background_services:
+            try:
+                self.background_services[service_name].cancel()
+                return(True)
+            except Exception as e:
+                RedServ.debugger(1,self.trace_back(False))
+        else:
+            return(False)
+    
     def test(self,out):
         print(out)
         
@@ -279,6 +304,164 @@ class RedServer(object):
             return(self.staticfileserve(cherrypy.lib.static.serve_file(filename,None,disposition,name)))
         else:
             return(self.staticfileserve(cherrypy.lib.static.serve_download(filename)))
+
+class CustomFileSystemEventHandler(object):
+
+    def on_any_event(self, event):
+        """Catch-all event handler.
+
+        :param event:
+            The event object representing the file system event.
+        :type event:
+            :class:`FileSystemEvent`
+        """
+
+    def on_moved(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Moved: "+event.src_path+" to: "+event.dest_path)
+            if event.src_path.endswith(".py") and event.dest_path.endswith(".py"):
+                if not os.stat(event.src_path).st_size==0:
+                    domain_split = event.src_path.split(os.sep)
+                    old_domain_split = event.src_path.split(os.sep)
+                    if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+                        sievepath = event.dest_path
+                        sievetime = os.path.getmtime(sievepath)
+                        if event.dest==os.path.join(current_dir,"pages","sieve.py"):
+                            #global sieve
+                            sievename = "global"
+                        else:
+                            #normal sieve
+                            this_domain = domain_split[-2]+"."+domain_split[-3]
+                            #RedServ.noserve(this_domain,"sieve.py")
+                            sievename = this_domain
+                            del sieve_cache[old_domain_split[-2]+"."+old_domain_split[-3]]
+                        if not sievename in sieve_cache:
+                            sieve_cache[sievename] = []
+                        if not sieve_cache[sievename]==[]:
+                            if sieve_cache[sievename][1] < sievetime:
+                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                sieve_cache[sievename][1] = sievetime
+                        else:
+                            sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                            sieve_cache[sievename].append(sievetime)
+                    else:
+                        filename = event.dest_path
+                        if not filename in python_page_cache:
+                            python_page_cache[filename] = []
+                        page_time = os.path.getmtime(filename)
+                        if not python_page_cache[filename]==[]:
+                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
+                            python_page_cache[filename][1] = page_time
+                        else:
+                            python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                            python_page_cache[filename].append(page_time)
+                        del python_page_cache[event.src_path]
+                else:
+                    if event.src_path.endswith(".py") and (not event.dest_path.endswith(".py")):
+                        self.on_deleted(event)
+
+    def on_created(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Created: "+event.src_path)
+            if event.src_path.endswith(".py"):
+                if not os.stat(event.src_path).st_size==0:
+                    domain_split = event.src_path.split(os.sep)
+                    if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+                        sievepath = event.src_path
+                        sievetime = os.path.getmtime(sievepath)
+                        if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
+                            #global sieve
+                            sievename = "global"
+                        else:
+                            #normal sieve
+                            this_domain = domain_split[-2]+"."+domain_split[-3]
+                            #RedServ.noserve(this_domain,"sieve.py")
+                            sievename = this_domain
+                        if not sievename in sieve_cache:
+                            sieve_cache[sievename] = []
+                        if not sieve_cache[sievename]==[]:
+                            if sieve_cache[sievename][1] < sievetime:
+                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                sieve_cache[sievename][1] = sievetime
+                        else:
+                            sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                            sieve_cache[sievename].append(sievetime)
+                    else:
+                        filename = event.src_path
+                        if not filename in python_page_cache:
+                            python_page_cache[filename] = []
+                        page_time = os.path.getmtime(filename)
+                        if not python_page_cache[filename]==[]:
+                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
+                            python_page_cache[filename][1] = page_time
+                        else:
+                            python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                            python_page_cache[filename].append(page_time)
+
+    def on_deleted(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Deleted: "+event.src_path)
+            if event.src_path.endswith(".py"):
+                domain_split = event.src_path.split(os.sep)
+                if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+                    sievepath = event.src_path
+                    if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
+                        #global sieve
+                        sievename = "global"
+                    else:
+                        #normal sieve
+                        this_domain = domain_split[-2]+"."+domain_split[-3]
+                        #RedServ.noserve(this_domain,"sieve.py")
+                        sievename = this_domain
+                    if sievename in sieve_cache:
+                        del sieve_cache[sievename]
+                else:
+                    filename = event.src_path
+                    if filename in python_page_cache:
+                        del python_page_cache[filename]
+
+    def on_modified(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Changed: "+event.src_path)
+            if event.src_path.endswith(".py"):
+                if not os.stat(event.src_path).st_size==0:
+                    domain_split = event.src_path.split(os.sep)
+                    if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+                        sievepath = event.src_path
+                        sievetime = os.path.getmtime(sievepath)
+                        if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
+                            #global sieve
+                            sievename = "global"
+                        else:
+                            #normal sieve
+                            this_domain = domain_split[-2]+"."+domain_split[-3]
+                            RedServ.noserve(this_domain,"sieve.py")
+                            sievename = this_domain
+                        if not sievename in sieve_cache:
+                            sieve_cache[sievename] = []
+                        if not sieve_cache[sievename]==[]:
+                            if sieve_cache[sievename][1] < sievetime:
+                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                sieve_cache[sievename][1] = sievetime
+                        else:
+                            sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                            sieve_cache[sievename].append(sievetime)
+                    else:
+                        filename = event.src_path
+                        if not filename in python_page_cache:
+                            python_page_cache[filename] = []
+                        page_time = os.path.getmtime(filename)
+                        if not python_page_cache[filename]==[]:
+                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
+                            python_page_cache[filename][1] = page_time
+                        else:
+                            python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                            python_page_cache[filename].append(page_time)
+
 
 class staticfileserve(Exception):
      def __init__(self, value):
@@ -1030,7 +1213,7 @@ class WebInterface:
     default.exposed = True
         
 
-def web_init():
+def web_init(observer):
     print("INFO: Initialising web server...")
     from cherrypy._cpnative_server import CPHTTPServer
     cherrypy.server.httpserver = CPHTTPServer(cherrypy.server)
@@ -1051,6 +1234,8 @@ def web_init():
             os.mkdir(os.path.abspath(data))
     global RedServ
     RedServ = RedServer()
+    observer.start()
+    RedServ.debugger(3,"Started file watchdog.")
     RedServ.debugger(3,"CherryPy version: "+cherrypy.__version__+" HTTP server version: "+cherrypy.server.httpserver.version)
     cherrypy.server.httpserver.version = RedServ._version_
     cherrypy.__version__ = RedServ._version_
@@ -1178,4 +1363,22 @@ def web_init():
     cherrypy.engine.block()
 
 if __name__ == '__main__':
-    web_init()
+    watchdog_path = os.path.join(current_dir,"pages")
+    custom_event_handler = CustomFileSystemEventHandler()
+    event_handler = watchdog_file_event_handler()
+    event_handler.on_any_event = custom_event_handler.on_any_event
+    event_handler.on_moved = custom_event_handler.on_moved
+    event_handler.on_created = custom_event_handler.on_created
+    event_handler.on_deleted = custom_event_handler.on_deleted
+    event_handler.on_modified = custom_event_handler.on_modified
+    observer = watchdog_observer()
+    observer.schedule(event_handler, watchdog_path, recursive=True)
+    try:
+        web_init(observer)
+    except Exception as e:
+        type_, value_, traceback_ = sys.exc_info()
+        trace = traceback.format_exception(type_, value_, traceback_)
+        print("CRITICAL: "+trace)
+    finally:
+        observer.stop()
+    observer.join()
