@@ -85,7 +85,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.6.1_beta"
+        self._version_string_ = "1.6.2_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -118,6 +118,7 @@ class RedServer(object):
     
     def gc_collect(self):
         #self.debugger(3,str(gc.collect()))
+        gc.collect()
         gc.collect()
     
     def test(self,out):
@@ -599,17 +600,14 @@ folderext = [
 
 
 def filepicker(filename,fileext):
+    #RedServ.debugger(3,filename)
     for data in fileext:
-        if not data.startswith("."):
-            file = os.path.join(filename,data)
-        else:
+        if data.startswith("."):
             file = filename+data
-        if os.path.exists(file):
-            try:
-                if os.path.isfile(file):
-                    return(file)
-            except Exception,e:
-                pass
+        else:
+            file = os.path.join(filename,data)
+        if os.path.exists(file) and os.path.isfile(file):
+            return(file)
     return(filename)
     
 def ssl_cert_directory(cert_dir="."):
@@ -1122,24 +1120,21 @@ class WebInterface:
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return("404")
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
-            try:
-                bang = os.listdir(filename)
-            except Exception,e:
-                bang = ""
-                if str(e).startswith("[Errno 2]"):
+            if os.path.exists(filename):
+                if os.path.isfile(filename):
                     filename = filepicker(filename,fileext)
-                    if not os.path.exists(filename) or filename==None:
-                        cherrypy.response.status = 404
-                        cherrypy.response.headers["content-type"] = "text/plain"
+                else:
+                    try:
+                        filename = filepicker(filename,folderext)
+                        open(filename, 'r')
+                    except Exception,e:
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
-                if str(e).startswith("[Errno 20]"):
-                    filename = filepicker(filename,fileext)
-            if not bang=="":
-                try:
-                    filename = filepicker(filename,folderext)
-                    open(filename, 'r')
-                except Exception,e:
+            else:
+                filename = filepicker(filename,fileext)
+                if not os.path.exists(filename) or filename==None:
+                    cherrypy.response.status = 404
+                    cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     return(notfound2(cherrypy,e,virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
@@ -1307,6 +1302,7 @@ def web_init(page_observer,config_observer):
         'log.error_file': site_logfile,
         'log.screen': False,
         'gzipfilter.on':True,
+        'tools.caching.on':False,
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
         'tools.gzip.on':True,
         'tools.encode.on':True,
@@ -1337,14 +1333,12 @@ def web_init(page_observer,config_observer):
     RedServ.https_ports = conf["HTTPS"]["ports"]
     RedServ.https_port = SSLPORT
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
+        from util import ssl_fix
         if sys.version_info < (3, 0):
-            from util import ssl_fix
             from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
-            ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
         else:
-            from util import ssl_fix
             from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
-            ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
+        ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if not (os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert"])) and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert_private_key"]))):
             SSL_cert_gen(RedServ.sysinfo(),os.path.abspath("certs"))
