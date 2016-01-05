@@ -535,8 +535,8 @@ def get_config_default():
         "socket_queue":50,
         "ports":[8082],
         "CA_cert":"default-ca.pem",
-        "cert":"cert.crt",
-        "cert_private_key":"privkey.key"
+        "cert":"certs/cert.crt",
+        "cert_private_key":"certs/privkey.key"
     }
     return(config_file_data)
 
