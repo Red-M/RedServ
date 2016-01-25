@@ -1136,7 +1136,7 @@ class WebInterface:
                     cherrypy.response.status = 404
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(notfound2(cherrypy,e,virtloc,params))
+                    return(notfound2(cherrypy,"File Not Found.",virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
                 if os.path.exists(filename):
                     return(RedServ._serve_static_file(virt_host,list,paramlines,filename))
