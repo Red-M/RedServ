@@ -183,8 +183,6 @@ def main():
                     else:
                         domain_response_types_sent[domain][req_type][response] += 1.0
     
-    print(res_types_sent["domain"])
-    
     
     
     round_amount = 3
