@@ -1128,6 +1128,8 @@ class WebInterface:
                         filename = filepicker(filename,folderext)
                         open(filename, 'r')
                     except Exception,e:
+                        cherrypy.response.status = 404
+                        cherrypy.response.headers["content-type"] = "text/plain"
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
             else:
