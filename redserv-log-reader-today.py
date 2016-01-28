@@ -16,7 +16,7 @@ current_dir = os.path.join(current_dir,"logs")
 def debug_log(file,line):
     print(file+"\n"+line)
 
-def stat_gen(mode,round_amount,server_hits,server_response_types_sent,global_page_hits):
+def stat_gen(mode,round_amount,server_hits,req_types_recv,res_types_sent,req_res_types,global_page_hits):
     for server in sorted(server_hits):
         server_amount = int(server_hits[server])
         if round_amount==0:
@@ -24,13 +24,31 @@ def stat_gen(mode,round_amount,server_hits,server_response_types_sent,global_pag
         else:
             server_percent = round(server_hits[server]/global_page_hits*100,round_amount)
         print("\n"+mode+": "+server+":	"+str(server_amount)+"	"+str(server_percent)+"%")
-        for response in sorted(server_response_types_sent[server]):
-            res_amount = int(server_response_types_sent[server][response])
+        print(mode+" responses")
+        for response in sorted(res_types_sent[server]):
+            res_global = int(res_types_sent[server][response])
             if round_amount==0:
-                res_percent = server_response_types_sent[server][response]/server_hits[server]*100
+                res_percent = res_types_sent[server][response]/global_page_hits*100
             else:
-                res_percent = round(server_response_types_sent[server][response]/server_hits[server]*100,round_amount)
-            print(response+":	"+str(res_amount)+"	"+str(res_percent)+"%")
+                res_percent = round(res_types_sent[server][response]/global_page_hits*100,round_amount)
+            print(response+":	"+str(res_global)+"	"+str(res_percent)+"%")
+        print(mode+" request types")
+        for req_type in sorted(req_types_recv[server]):
+            res_global = int(req_types_recv[server][req_type])
+            if round_amount==0:
+                res_percent = req_types_recv[server][req_type]/global_page_hits*100
+            else:
+                res_percent = round(req_types_recv[server][req_type]/global_page_hits*100,round_amount)
+            print(req_type+":	"+str(res_global)+"	"+str(res_percent)+"%")
+        print("Request type to response stats:")
+        for req_type in sorted(req_res_types[server]):
+            for response in sorted(req_res_types[server][req_type]):
+                res_amount = int(req_res_types[server][req_type][response])
+                if round_amount==0:
+                    res_percent = req_res_types[server][req_type][response]/server_hits[server]*100
+                else:
+                    res_percent = round(req_res_types[server][req_type][response]/server_hits[server]*100,round_amount)
+                print(req_type+"("+response+"):	"+str(res_amount)+"	"+str(res_percent)+"%")
 
 def main():
     server_hits = {}
@@ -39,6 +57,8 @@ def main():
     server_response_types_sent = {}
     domain_response_types_sent = {}
     response_types_sent = {}
+    req_types_recv = {"domain":{},"server":{},"global":{}}
+    res_types_sent = {"domain":{},"server":{},"global":{}}
     global_page_hits = 0.0
     
     
@@ -93,40 +113,110 @@ def main():
                     else:
                         page_hits[page] += 1.0
                     
-                    if not response in response_types_sent:
-                        response_types_sent[response] = 1.0
+                    if not req_type in response_types_sent:
+                        response_types_sent[req_type] = {}
+                    if not response in response_types_sent[req_type]:
+                        response_types_sent[req_type][response] = 1.0
                     else:
-                        response_types_sent[response] += 1.0
+                        response_types_sent[req_type][response] += 1.0
                     
                     if not server_name in server_response_types_sent:
                         server_response_types_sent[server_name] = {}
-                    if not response in server_response_types_sent[server_name]:
-                        server_response_types_sent[server_name][response] = 1.0
+                    if not req_type in server_response_types_sent[server_name]:
+                        server_response_types_sent[server_name][req_type] = {}
+                    if not response in server_response_types_sent[server_name][req_type]:
+                        server_response_types_sent[server_name][req_type][response] = 1.0
                     else:
-                        server_response_types_sent[server_name][response] += 1.0
+                        server_response_types_sent[server_name][req_type][response] += 1.0
+                    
+                    if not domain in req_types_recv["domain"]:
+                        req_types_recv["domain"][domain] = {}
+                    if not req_type in req_types_recv["domain"][domain]:
+                        req_types_recv["domain"][domain][req_type] = 1.0
+                    else:
+                        req_types_recv["domain"][domain][req_type] += 1.0
+                    
+                    if not server_name in req_types_recv["server"]:
+                        req_types_recv["server"][server_name] = {}
+                    if not req_type in req_types_recv["server"][server_name]:
+                        req_types_recv["server"][server_name][req_type] = 1.0
+                    else:
+                        req_types_recv["server"][server_name][req_type] += 1.0
+                    
+                    if not req_type in req_types_recv["global"]:
+                        req_types_recv["global"][req_type] = 1.0
+                    else:
+                        req_types_recv["global"][req_type] += 1.0
+                    
+                    if not domain in req_types_recv["domain"]:
+                        req_types_recv["domain"][domain] = {}
+                    if not req_type in req_types_recv["domain"][domain]:
+                        req_types_recv["domain"][domain][req_type] = 1.0
+                    else:
+                        req_types_recv["domain"][domain][req_type] += 1.0
+                    
+                    if not domain in res_types_sent["domain"]:
+                        res_types_sent["domain"][domain] = {}
+                    if not response in res_types_sent["domain"][domain]:
+                        res_types_sent["domain"][domain][response] = 1.0
+                    else:
+                        res_types_sent["domain"][domain][response] += 1.0
+                    
+                    if not server_name in res_types_sent["server"]:
+                        res_types_sent["server"][server_name] = {}
+                    if not response in res_types_sent["server"][server_name]:
+                        res_types_sent["server"][server_name][response] = 1.0
+                    else:
+                        res_types_sent["server"][server_name][response] += 1.0
+                    
+                    if not response in res_types_sent["global"]:
+                        res_types_sent["global"][response] = 1.0
+                    else:
+                        res_types_sent["global"][response] += 1.0
                     
                     if not domain in domain_response_types_sent:
                         domain_response_types_sent[domain] = {}
-                    if not response in domain_response_types_sent[domain]:
-                        domain_response_types_sent[domain][response] = 1.0
+                    if not req_type in domain_response_types_sent[domain]:
+                        domain_response_types_sent[domain][req_type] = {}
+                    if not response in domain_response_types_sent[domain][req_type]:
+                        domain_response_types_sent[domain][req_type][response] = 1.0
                     else:
-                        domain_response_types_sent[domain][response] += 1.0
+                        domain_response_types_sent[domain][req_type][response] += 1.0
     
+    print(res_types_sent["domain"])
     
     
     
     round_amount = 3
-    stat_gen("Domain",round_amount,domain_hits,domain_response_types_sent,global_page_hits)
-    stat_gen("Server",round_amount,server_hits,server_response_types_sent,global_page_hits)
+    stat_gen("Domain",round_amount,domain_hits,req_types_recv["domain"],res_types_sent["domain"],domain_response_types_sent,global_page_hits)
+    stat_gen("Server",round_amount,server_hits,req_types_recv["server"],res_types_sent["server"],server_response_types_sent,global_page_hits)
     
     print("\nGlobal today hits:	"+str(int(global_page_hits)))
-    for response in sorted(response_types_sent):
-        res_global = int(response_types_sent[response])
+    print("Global responses")
+    for response in sorted(res_types_sent["global"]):
+        res_global = int(res_types_sent["global"][response])
         if round_amount==0:
-            res_percent = response_types_sent[response]/global_page_hits*100
+            res_percent = res_types_sent["global"][response]/global_page_hits*100
         else:
-            res_percent = round(response_types_sent[response]/global_page_hits*100,round_amount)
+            res_percent = round(res_types_sent["global"][response]/global_page_hits*100,round_amount)
         print(response+":	"+str(res_global)+"	"+str(res_percent)+"%")
+    print("Global request types")
+    for req_type in sorted(req_types_recv["global"]):
+        res_global = int(req_types_recv["global"][req_type])
+        if round_amount==0:
+            res_percent = req_types_recv["global"][req_type]/global_page_hits*100
+        else:
+            res_percent = round(req_types_recv["global"][req_type]/global_page_hits*100,round_amount)
+        print(req_type+":	"+str(res_global)+"	"+str(res_percent)+"%")
+    print("Global request type to response stats:")
+    for req_type in sorted(response_types_sent):
+        for response in sorted(response_types_sent[req_type]):
+            res_global = int(response_types_sent[req_type][response])
+            if round_amount==0:
+                res_percent = response_types_sent[req_type][response]/global_page_hits*100
+            else:
+                res_percent = round(response_types_sent[req_type][response]/global_page_hits*100,round_amount)
+            print(req_type+"("+response+"):	"+str(res_global)+"	"+str(res_percent)+"%")
 
 if __name__=="__main__":
     main()
