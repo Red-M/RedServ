@@ -148,13 +148,6 @@ def main():
                     else:
                         req_types_recv["global"][req_type] += 1.0
                     
-                    if not domain in req_types_recv["domain"]:
-                        req_types_recv["domain"][domain] = {}
-                    if not req_type in req_types_recv["domain"][domain]:
-                        req_types_recv["domain"][domain][req_type] = 1.0
-                    else:
-                        req_types_recv["domain"][domain][req_type] += 1.0
-                    
                     if not domain in res_types_sent["domain"]:
                         res_types_sent["domain"][domain] = {}
                     if not response in res_types_sent["domain"][domain]:
