@@ -347,8 +347,8 @@ class PageFileEventHandler(object):
                             sieve_cache[sievename] = []
                         if not sieve_cache[sievename]==[]:
                             if sieve_cache[sievename][1] < sievetime:
-                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
                                 sieve_cache[sievename][1] = sievetime
+                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
                         else:
                             sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
                             sieve_cache[sievename].append(sievetime)
@@ -358,8 +358,8 @@ class PageFileEventHandler(object):
                             python_page_cache[filename] = []
                         page_time = os.path.getmtime(filename)
                         if not python_page_cache[filename]==[]:
-                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
                             python_page_cache[filename][1] = page_time
+                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
                         else:
                             python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
                             python_page_cache[filename].append(page_time)
@@ -390,8 +390,8 @@ class PageFileEventHandler(object):
                             sieve_cache[sievename] = []
                         if not sieve_cache[sievename]==[]:
                             if sieve_cache[sievename][1] < sievetime:
-                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
                                 sieve_cache[sievename][1] = sievetime
+                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
                         else:
                             sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
                             sieve_cache[sievename].append(sievetime)
@@ -401,8 +401,8 @@ class PageFileEventHandler(object):
                             python_page_cache[filename] = []
                         page_time = os.path.getmtime(filename)
                         if not python_page_cache[filename]==[]:
-                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
                             python_page_cache[filename][1] = page_time
+                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
                         else:
                             python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
                             python_page_cache[filename].append(page_time)
@@ -452,8 +452,8 @@ class PageFileEventHandler(object):
                             sieve_cache[sievename] = []
                         if not sieve_cache[sievename]==[]:
                             if sieve_cache[sievename][1] < sievetime:
-                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
                                 sieve_cache[sievename][1] = sievetime
+                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
                         else:
                             sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
                             sieve_cache[sievename].append(sievetime)
@@ -463,8 +463,8 @@ class PageFileEventHandler(object):
                             python_page_cache[filename] = []
                         page_time = os.path.getmtime(filename)
                         if not python_page_cache[filename]==[]:
-                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
                             python_page_cache[filename][1] = page_time
+                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
                         else:
                             python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
                             python_page_cache[filename].append(page_time)
@@ -520,6 +520,8 @@ def get_config_default():
         "database_connections": False,
         "page_response_check": 1,
         "page_request_timeout": 30,
+        "logs_to_screen":False,
+        "cherrypy_access_logs":"",
         "log": True
     }
     config_file_data["HTTP"] = {
@@ -656,7 +658,8 @@ def sieve(sievedata,sieve_cache):
         (sievepath,sievename) = data
         if not sievename in sieve_cache:
             sieve_cache[sievename] = []
-        (sievedata,sieve_cache[sievename]) = sieve_exec(sievedata,sieve_cache[sievename],sievepath,sievename)
+        if sievedata['return_after_this']==False:
+            (sievedata,sieve_cache[sievename]) = sieve_exec(sievedata,sieve_cache[sievename],sievepath,sievename)
     return(sievedata,sieve_cache)
 
 def sieve_exec(sievedata,sievecache,sievepath,sievename):
@@ -813,7 +816,7 @@ def logging(logline,logtype,*extra):
                 if no_log==False:
                     logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
                     str(cherrypy.request.remote.ip)+"	["+cherrypy.request.method+"("+str(cherrypy.response.status)+\
-                    ")]	["+proto+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
+                    ")]	["+proto+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \  #<"+cherrypy.request.stage+">
                     str(cherrypy.request.headers)+"	"+str(cherrypy.request.body.params)+"\n"
                 
             if logtype == 2: #bad vhost log line
@@ -842,6 +845,8 @@ def conf_update_print(new_conf,old_conf):
             "vhosts-enabled":"Virtual hosts are now",
             "php":"PHP is now",
             "log":"Logging is now",
+            "page_response_check":"Page response checks are now",
+            "page_request_timeout":"Page request time outs are now",
             "database_connections":"Database connections are now"
     }
     for data in options:
@@ -926,6 +931,37 @@ def conf_reload(conf):
             print("Started HTTPS on: "+new_https_ports[:-2])
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
+        
+        #Update Cherrypy's config
+        site_logfolder = os.path.join(current_dir,"logs","site",RedServ.sysinfo(),time.strftime("%Y"), time.strftime("%m"))
+        site_logfile = os.path.join(site_logfolder,time.strftime("%d")+".txt")
+        if not os.path.exists(site_logfolder):
+            os.makedirs(site_logfolder)
+        global_conf = {
+            'global': { 'engine.autoreload.on': False,
+            'environment': 'embedded',
+            'log.error_file': site_logfile,
+            'log.screen': conf["logs_to_screen"],
+            'gzipfilter.on':True,
+            'tools.caching.on':False,
+            'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
+            'tools.gzip.on':True,
+            'tools.encode.on':True,
+            'tools.decode.on':True,
+            'tools.json_in.on': True,
+            'tools.json_in.force': False,
+            'tools.sessions.on':conf["sessions"],
+            'tools.sessions.locking':'explicit',
+            #'tools.sessions.secure':conf["sessions"],
+            'response.timeout': conf["page_request_timeout"],
+            'engine.timeout_monitor.on':True,
+            'engine.timeout_monitor.frequency':conf["page_response_check"]
+        }}
+        if not (os.path.join(current_dir,conf["cherrypy_access_logs"])==current_dir or conf["cherrypy_access_logs"]==""):
+            global_conf['global']['log.access_file'] = os.path.join(current_dir,conf["cherrypy_access_logs"])
+        cherrypy.config.update(global_conf)
+        
+        
         conf_update_print(new_conf,old_conf)
     return(new_conf)
 
@@ -1042,6 +1078,7 @@ class WebInterface:
             "bad":bad,
             "params":params,
             "global_site_data":site_shared_data,
+            "return_after_this":False,
             "site_data":site_glo_data[virt_host]
             }
             try:
@@ -1164,6 +1201,7 @@ class WebInterface:
             "this_page":virt_host+"/"+"/".join(list),
             "this_domain":virt_host,
             "global_site_data":site_shared_data,
+            "return_after_this":sievedata['return_after_this'],
             "site_data":site_glo_data[virt_host],
             "http_port":STDPORT,
             "https_port":SSLPORT
@@ -1302,7 +1340,7 @@ def web_init(page_observer,config_observer):
         'global': { 'engine.autoreload.on': False,
         'environment': 'embedded',
         'log.error_file': site_logfile,
-        'log.screen': False,
+        'log.screen': conf["logs_to_screen"],
         'gzipfilter.on':True,
         'tools.caching.on':False,
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
@@ -1318,6 +1356,8 @@ def web_init(page_observer,config_observer):
         'engine.timeout_monitor.on':True,
         'engine.timeout_monitor.frequency':conf["page_response_check"]
     }}
+    if not (os.path.join(current_dir,conf["cherrypy_access_logs"])==current_dir or conf["cherrypy_access_logs"]==""):
+        global_conf['global']['log.access_file'] = os.path.join(current_dir,conf["cherrypy_access_logs"])
     cherrypy.config.update(global_conf)
     web_interface = WebInterface()
     tree_mount = cherrypy.tree.mount(web_interface, '/')
