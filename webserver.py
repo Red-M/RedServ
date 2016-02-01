@@ -816,9 +816,9 @@ def logging(logline,logtype,*extra):
                 if no_log==False:
                     logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
                     str(cherrypy.request.remote.ip)+"	["+cherrypy.request.method+"("+str(cherrypy.response.status)+\
-                    ")]	["+proto+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \  #<"+cherrypy.request.stage+">
+                    ")]	["+proto+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
                     str(cherrypy.request.headers)+"	"+str(cherrypy.request.body.params)+"\n"
-                
+                #<"+cherrypy.request.stage+">
             if logtype == 2: #bad vhost log line
                 data = extra[0]
                 virt_host = extra[1]
