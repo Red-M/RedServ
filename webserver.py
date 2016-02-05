@@ -85,7 +85,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.6.3_beta"
+        self._version_string_ = "1.6.4_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -346,23 +346,35 @@ class PageFileEventHandler(object):
                         if not sievename in sieve_cache:
                             sieve_cache[sievename] = []
                         if not sieve_cache[sievename]==[]:
-                            if sieve_cache[sievename][1] < sievetime:
-                                sieve_cache[sievename][1] = sievetime
-                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                            if sieve_cache[sievename][0] < sievetime:
+                                sieve_cache[sievename][0] = sievetime
+                                try:
+                                    sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                except Exception as e:
+                                    print(RedServ.trace_back(False))
                         else:
-                            sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
                             sieve_cache[sievename].append(sievetime)
+                            try:
+                                sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
                     else:
                         filename = event.dest_path
                         if not filename in python_page_cache:
                             python_page_cache[filename] = []
                         page_time = os.path.getmtime(filename)
                         if not python_page_cache[filename]==[]:
-                            python_page_cache[filename][1] = page_time
-                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
+                            python_page_cache[filename][0] = page_time
+                            try:
+                                python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
                         else:
                             python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
-                            python_page_cache[filename].append(page_time)
+                            try:
+                                python_page_cache[filename].append(page_time)
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
                         del python_page_cache[event.src_path]
                 else:
                     if event.src_path.endswith(".py") and (not event.dest_path.endswith(".py")):
@@ -389,23 +401,35 @@ class PageFileEventHandler(object):
                         if not sievename in sieve_cache:
                             sieve_cache[sievename] = []
                         if not sieve_cache[sievename]==[]:
-                            if sieve_cache[sievename][1] < sievetime:
-                                sieve_cache[sievename][1] = sievetime
-                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                            if sieve_cache[sievename][0] < sievetime:
+                                sieve_cache[sievename][0] = sievetime
+                                try:
+                                    sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                except Exception as e:
+                                    print(RedServ.trace_back(False))
                         else:
                             sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
-                            sieve_cache[sievename].append(sievetime)
+                            try:
+                                sieve_cache[sievename].append(sievetime)
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
                     else:
                         filename = event.src_path
                         if not filename in python_page_cache:
                             python_page_cache[filename] = []
                         page_time = os.path.getmtime(filename)
                         if not python_page_cache[filename]==[]:
-                            python_page_cache[filename][1] = page_time
-                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
+                            python_page_cache[filename][0] = page_time
+                            try:
+                                python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
                         else:
                             python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
-                            python_page_cache[filename].append(page_time)
+                            try:
+                                python_page_cache[filename].append(page_time)
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
 
     def on_deleted(self, event):
         what = 'directory' if event.is_directory else 'file'
@@ -453,10 +477,16 @@ class PageFileEventHandler(object):
                         if not sieve_cache[sievename]==[]:
                             if sieve_cache[sievename][1] < sievetime:
                                 sieve_cache[sievename][1] = sievetime
-                                sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                try:
+                                    sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                except Exception as e:
+                                    print(RedServ.trace_back(False))
                         else:
                             sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
-                            sieve_cache[sievename].append(sievetime)
+                            try:
+                                sieve_cache[sievename].append(sievetime)
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
                     else:
                         filename = event.src_path
                         if not filename in python_page_cache:
@@ -464,10 +494,16 @@ class PageFileEventHandler(object):
                         page_time = os.path.getmtime(filename)
                         if not python_page_cache[filename]==[]:
                             python_page_cache[filename][1] = page_time
-                            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
+                            try:
+                                python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
                         else:
                             python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
-                            python_page_cache[filename].append(page_time)
+                            try:
+                                python_page_cache[filename].append(page_time)
+                            except Exception as e:
+                                print(RedServ.trace_back(False))
 
 class ConfigFileEventHandler(object):
 
@@ -668,14 +704,14 @@ def sieve_exec(sievedata,sievecache,sievepath,sievename):
         if not sievename=="global":
             RedServ.noserve(sievedata["this_domain"],"sieve.py")
         if not sievecache==[]:
-            if sievecache[1] < sievetime:
-                sievecache[0] = compile(open(sievepath,'r').read(),sievepath,'exec')
-                sievecache[1] = sievetime
+            if sievecache[0] < sievetime:
+                sievecache[0] = sievetime
+                sievecache[1] = compile(open(sievepath,'r').read(),sievepath,'exec')
         else:
-            sievecache.append(compile(open(sievepath,'r').read(),sievepath,'exec'))
             sievecache.append(sievetime)
+            sievecache.append(compile(open(sievepath,'r').read(),sievepath,'exec'))
         sievedata.update(globals())
-        exec(sievecache[0],sievedata)
+        exec(sievecache[1],sievedata)
     return(sievedata,sievecache)
     
 def exec_page_script(filename,datatoreturn,python_page_cache):
@@ -683,13 +719,13 @@ def exec_page_script(filename,datatoreturn,python_page_cache):
         python_page_cache[filename] = []
     page_time = os.path.getmtime(filename)
     if not python_page_cache[filename]==[]:
-        if python_page_cache[filename][1] < page_time:
-            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
-            python_page_cache[filename][1] = page_time
+        if python_page_cache[filename][0] < page_time:
+            python_page_cache[filename][0] = page_time
+            python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
     else:
-        python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
         python_page_cache[filename].append(page_time)
-    exec(python_page_cache[filename][0],datatoreturn)
+        python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+    exec(python_page_cache[filename][1],datatoreturn)
     return(datatoreturn)
 
 def get_db_connection(name,folders=None):
@@ -769,8 +805,8 @@ def PHP(path):
     return(proc)
     
 def debughandler(params,debugtable=[]):
-    if "debug" in params:
-        if params["debug"]=="1":
+    if "redserv-debug" in params:
+        if params["redserv-debug"]=="1":
             if "v" in params:
                 if not params["v"] == "1":
                     debuginfo = "\n"+RedServ.sysinfo()
@@ -1423,8 +1459,8 @@ def web_init(page_observer,config_observer):
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
     sieve_cache["global"] = []
     if os.path.exists(sievepath):
-        sieve_cache["global"].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
         sieve_cache["global"].append(os.path.getmtime(sievepath))
+        sieve_cache["global"].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
     
     port_statuses = "Web server starting up: "
     if conf["HTTP"]["enabled"]==True:
