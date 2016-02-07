@@ -85,7 +85,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.6.4_beta"
+        self._version_string_ = "1.6.5_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -314,6 +314,52 @@ class RedServer(object):
 
 class PageFileEventHandler(object):
 
+    def redo_cache_check(self,event,domain_split):
+        if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+            sievepath = event.src_path
+            sievetime = os.path.getmtime(sievepath)
+            if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
+                #global sieve
+                sievename = "global"
+            else:
+                #normal sieve
+                this_domain = domain_split[-2]+"."+domain_split[-3]
+                #RedServ.noserve(this_domain,"sieve.py")
+                sievename = this_domain
+            if not sievename in sieve_cache:
+                sieve_cache[sievename] = []
+            if not sieve_cache[sievename]==[]:
+                if sieve_cache[sievename][0] < sievetime:
+                    sieve_cache[sievename][0] = sievetime
+                    try:
+                        sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                    except Exception as e:
+                        print(RedServ.trace_back(False))
+            else:
+                sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                try:
+                    sieve_cache[sievename].append(sievetime)
+                except Exception as e:
+                    print(RedServ.trace_back(False))
+        else:
+            filename = event.src_path
+            if not filename in python_page_cache:
+                python_page_cache[filename] = []
+            page_time = os.path.getmtime(filename)
+            if not python_page_cache[filename]==[]:
+                python_page_cache[filename][0] = page_time
+                try:
+                    python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
+                except Exception as e:
+                    print(RedServ.trace_back(False))
+            else:
+                python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                try:
+                    python_page_cache[filename].append(page_time)
+                except Exception as e:
+                    print(RedServ.trace_back(False))
+
+
     def on_any_event(self, event):
         """Catch-all event handler.
 
@@ -380,56 +426,6 @@ class PageFileEventHandler(object):
                     if event.src_path.endswith(".py") and (not event.dest_path.endswith(".py")):
                         self.on_deleted(event)
 
-    def on_created(self, event):
-        what = 'directory' if event.is_directory else 'file'
-        if what=='file':
-            #RedServ.debugger(3,"Created: "+event.src_path)
-            if event.src_path.endswith(".py"):
-                if not os.stat(event.src_path).st_size==0:
-                    domain_split = event.src_path.split(os.sep)
-                    if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
-                        sievepath = event.src_path
-                        sievetime = os.path.getmtime(sievepath)
-                        if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
-                            #global sieve
-                            sievename = "global"
-                        else:
-                            #normal sieve
-                            this_domain = domain_split[-2]+"."+domain_split[-3]
-                            #RedServ.noserve(this_domain,"sieve.py")
-                            sievename = this_domain
-                        if not sievename in sieve_cache:
-                            sieve_cache[sievename] = []
-                        if not sieve_cache[sievename]==[]:
-                            if sieve_cache[sievename][0] < sievetime:
-                                sieve_cache[sievename][0] = sievetime
-                                try:
-                                    sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
-                                except Exception as e:
-                                    print(RedServ.trace_back(False))
-                        else:
-                            sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
-                            try:
-                                sieve_cache[sievename].append(sievetime)
-                            except Exception as e:
-                                print(RedServ.trace_back(False))
-                    else:
-                        filename = event.src_path
-                        if not filename in python_page_cache:
-                            python_page_cache[filename] = []
-                        page_time = os.path.getmtime(filename)
-                        if not python_page_cache[filename]==[]:
-                            python_page_cache[filename][0] = page_time
-                            try:
-                                python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
-                            except Exception as e:
-                                print(RedServ.trace_back(False))
-                        else:
-                            python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
-                            try:
-                                python_page_cache[filename].append(page_time)
-                            except Exception as e:
-                                print(RedServ.trace_back(False))
 
     def on_deleted(self, event):
         what = 'directory' if event.is_directory else 'file'
@@ -454,6 +450,15 @@ class PageFileEventHandler(object):
                     if filename in python_page_cache:
                         del python_page_cache[filename]
 
+    def on_created(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Created: "+event.src_path)
+            if event.src_path.endswith(".py"):
+                if not os.stat(event.src_path).st_size==0:
+                    domain_split = event.src_path.split(os.sep)
+                    self.redo_cache_check(event,domain_split)
+
     def on_modified(self, event):
         what = 'directory' if event.is_directory else 'file'
         if what=='file':
@@ -461,49 +466,7 @@ class PageFileEventHandler(object):
             if event.src_path.endswith(".py"):
                 if not os.stat(event.src_path).st_size==0:
                     domain_split = event.src_path.split(os.sep)
-                    if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
-                        sievepath = event.src_path
-                        sievetime = os.path.getmtime(sievepath)
-                        if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
-                            #global sieve
-                            sievename = "global"
-                        else:
-                            #normal sieve
-                            this_domain = domain_split[-2]+"."+domain_split[-3]
-                            RedServ.noserve(this_domain,"sieve.py")
-                            sievename = this_domain
-                        if not sievename in sieve_cache:
-                            sieve_cache[sievename] = []
-                        if not sieve_cache[sievename]==[]:
-                            if sieve_cache[sievename][1] < sievetime:
-                                sieve_cache[sievename][1] = sievetime
-                                try:
-                                    sieve_cache[sievename][0] = compile(open(sievepath,'r').read(),sievepath,'exec')
-                                except Exception as e:
-                                    print(RedServ.trace_back(False))
-                        else:
-                            sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
-                            try:
-                                sieve_cache[sievename].append(sievetime)
-                            except Exception as e:
-                                print(RedServ.trace_back(False))
-                    else:
-                        filename = event.src_path
-                        if not filename in python_page_cache:
-                            python_page_cache[filename] = []
-                        page_time = os.path.getmtime(filename)
-                        if not python_page_cache[filename]==[]:
-                            python_page_cache[filename][1] = page_time
-                            try:
-                                python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
-                            except Exception as e:
-                                print(RedServ.trace_back(False))
-                        else:
-                            python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
-                            try:
-                                python_page_cache[filename].append(page_time)
-                            except Exception as e:
-                                print(RedServ.trace_back(False))
+                    self.redo_cache_check(event,domain_split)
 
 class ConfigFileEventHandler(object):
 
