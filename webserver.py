@@ -336,9 +336,9 @@ class PageFileEventHandler(object):
                     except Exception as e:
                         print(RedServ.trace_back(False))
             else:
-                sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                sieve_cache[sievename].append(sievetime)
                 try:
-                    sieve_cache[sievename].append(sievetime)
+                    sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
                 except Exception as e:
                     print(RedServ.trace_back(False))
         else:
@@ -416,9 +416,9 @@ class PageFileEventHandler(object):
                             except Exception as e:
                                 print(RedServ.trace_back(False))
                         else:
-                            python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                            python_page_cache[filename].append(page_time)
                             try:
-                                python_page_cache[filename].append(page_time)
+                                python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
                             except Exception as e:
                                 print(RedServ.trace_back(False))
                         del python_page_cache[event.src_path]
