@@ -85,7 +85,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.6.5_beta"
+        self._version_string_ = "1.6.6_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -1059,7 +1059,7 @@ class WebInterface:
         
     ###Start
         filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
-        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
+        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")) or os.path.exists(os.path.join(os.path.abspath(virtloc),"sieve.py")):
             page = virt_host+"/"+"/".join(list)
             datsieve = ""
             sievedata = {
@@ -1131,6 +1131,10 @@ class WebInterface:
             #        datatoreturn["datareturned"] = "Please login."
             #        cherrypy.response.status = 401
             #   ^ handle basic auth protection requests and make sure to add input of a realm and a user list.    
+        else:
+            sievedata = {
+            "return_after_this":False
+            }
         if bad == False:
             headers = {}
             responsecode = 200
