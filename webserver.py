@@ -91,8 +91,7 @@ class RedServer(object):
         self.http_ports = []
         self.https_port = 8081
         self.https_ports = []
-        os.chdir('.' or sys.path[0])
-        self.current_dir = os.path.abspath('.')
+        self.current_dir = current_dir
     
     def start_background_service(self,service_name,interval,function,args=[],kwargs={},bus=None):
         if not service_name in self.background_services:
@@ -1015,9 +1014,9 @@ class WebInterface:
             paramlines = "?"+cherrypy.request.query_string
         if "host" in cherrypy.request.headers or rproxied_test==True:
             if "host" in cherrypy.request.headers:
-                virt_host = cherrypy.request.headers["host"]
+                virt_host = cherrypy.request.headers["host"].lower()
             if rproxied_test==True:
-                virt_host = cherrypy.request.headers["X-Forwarded-Host"]
+                virt_host = cherrypy.request.headers["X-Forwarded-Host"].lower()
         else:
             cherrypy.response.status = 404
             logging("", 1, [cherrypy,"No host header",list,paramlines])
