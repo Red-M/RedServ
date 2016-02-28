@@ -1,7 +1,7 @@
 RedServ
 =======
 
-RedServ is a web server built on top of Cherrypy.
+RedServ is a web framework built on top of Cherrypy.
 
 Requirements:
 =============
