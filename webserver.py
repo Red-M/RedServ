@@ -101,7 +101,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.6.6_beta"
+        self._version_string_ = "1.7.0_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -1061,13 +1061,12 @@ class WebInterface:
         if cherrypy.request.local.port==SSLPORT:
             if conf["HTTPS"]["reverse_proxied"]==True:
                 cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
-            
-        try:
-            if conf["vhosts-enabled"]==True:
-                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
-            else:
-                virtloc = os.path.abspath('pages')+os.sep
-        except Exception,e:
+
+        if conf["vhosts-enabled"]==True:
+            virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
+        else:
+            virtloc = os.path.abspath('pages')+os.sep
+        if not os.path.exists(virtloc):
             cherrypy.response.status = 404
             logging("", 1, [cherrypy,virt_host,list,paramlines])
             return("")
