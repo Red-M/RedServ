@@ -10,11 +10,13 @@ Requirements:
 - Requests
 - Watchdog
 
+Recommended:
+============
+- PyOpenSSL
+
 Optional:
 =========
-- PyOpenSSL
-- Mako
-- PHP5
+- php<version>-fpm
 
 Installing:
 ==========
@@ -26,12 +28,6 @@ Installing:
 
 4. git clone https://github.com/Red-M/RedServ.git
 
-Optional Install:
-=================
-- Install PyOpenSSL (python-openssl)
-- Install mako (python-mako)
-- Install php5-cli
-- Install php5-fpm
 
 Running:
 ========
@@ -43,10 +39,12 @@ Running:
 
 4. Drop web site files into ./pages
 
-optional:
+Optional:
+=========
 - Add SSL certs and edit ./config to turn on SSL and to make sure the certs are named the same as in the config
 
-additional:
+Additional:
+===========
 PHP scripting at the current time is very limited, do not expect full apache support for PHP right now.
 
 RedServ's main purpose is to provide an Apache2 + PHP like experience but with just pure Python (or with php and python).
