@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 # RedServ
 # Copyright (C) 2016  Red_M ( http://bitbucket.com/Red_M )
 
@@ -14,7 +15,6 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#!/usr/bin/env python2
 #Help from Luke Rogers
 
 # TODO:
@@ -270,7 +270,7 @@ class RedServer(object):
             (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
         return(nodename)
     
-    def basic_auth(self, realm, users,customcheckpassword=None,password_salt=None):
+    def basic_auth(self, realm, users, customcheckpassword=None, password_salt=None):
         if customcheckpassword==None:
             checkpassword = cherrypy.lib.auth_basic.checkpassword_dict(users)
         else:
@@ -281,6 +281,24 @@ class RedServer(object):
         cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="'+realm+'"'
         try:
             cherrypy.lib.auth_basic.basic_auth(realm, checkpassword)
+        except Exception,e:
+            if type(e)==type(cherrypy.HTTPError(404)):
+                status, error = e
+                raise(cherrypy.HTTPError(status,error))
+        self.loggedinuser = cherrypy.request.login
+        return(self.loggedinuser)
+    
+    def digest_auth(self, realm, users, key, customcheckpassword=None, password_salt=None):
+        if customcheckpassword==None:
+            checkpassword = cherrypy.lib.auth_digest.get_ha1_dict_plain(users)
+        else:
+            if password_salt==None:
+                checkpassword = customcheckpassword(users)
+            else:
+                checkpassword = customcheckpassword(users,password_salt)
+        #cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="'+realm+'"'
+        try:
+            cherrypy.lib.auth_digest.digest_auth(realm, checkpassword, key)
         except Exception,e:
             if type(e)==type(cherrypy.HTTPError(404)):
                 status, error = e
