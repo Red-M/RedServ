@@ -22,11 +22,9 @@ Installing:
 ==========
 1. Install Python 2.7 or higher
 
-2. Install Cherrypy3 (python-cherrypy3)
+2. Install requirements (pip install -r ./requirements.txt)
 
-3. Install Requests (python-requests)
-
-4. git clone https://github.com/Red-M/RedServ.git
+3. git clone https://github.com/Red-M/RedServ.git
 
 
 Running:
