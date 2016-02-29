@@ -6,7 +6,7 @@ RedServ is a web framework built on top of Cherrypy.
 Requirements:
 =============
 - Python 2.7+
-- Cherrypy3
+- Cherrypy
 - Requests
 - Watchdog
 
