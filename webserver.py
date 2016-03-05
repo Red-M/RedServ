@@ -101,7 +101,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.7.0_beta"
+        self._version_string_ = "1.7.1_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -303,6 +303,12 @@ class RedServer(object):
             if type(e)==type(cherrypy.HTTPError(404)):
                 status, error = e
                 raise(cherrypy.HTTPError(status,error))
+            if str(e).startswith("n must be a native str (got "):
+                new_users = {}
+                for user in users:
+                    new_users[str(user)] = str(users[user])
+                key = str(key)
+                return(self.digest_auth(realm, new_users, key, customcheckpassword, password_salt))
         self.loggedinuser = cherrypy.request.login
         return(self.loggedinuser)
         
