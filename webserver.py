@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 #Help from Luke Rogers
 
 # TODO:
@@ -101,7 +102,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.7.1_beta"
+        self._version_string_ = "1.8.0_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -288,16 +289,14 @@ class RedServer(object):
         self.loggedinuser = cherrypy.request.login
         return(self.loggedinuser)
     
-    def digest_auth(self, realm, users, key, customcheckpassword=None, password_salt=None):
-        if customcheckpassword==None:
+    def digest_auth(self, realm, users, key, raw_passwords=False):
+        if raw_passwords==False:
             checkpassword = cherrypy.lib.auth_digest.get_ha1_dict_plain(users)
         else:
-            if password_salt==None:
-                checkpassword = customcheckpassword(users)
-            else:
-                checkpassword = customcheckpassword(users,password_salt)
-        #cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="'+realm+'"'
+            checkpassword = cherrypy.lib.auth_digest.get_ha1_dict(users)
         try:
+            if not 'WWW-Authenticate' in cherrypy.response.headers:
+                cherrypy.response.headers['WWW-Authenticate'] = cherrypy.lib.auth_digest.www_authenticate(realm, key)
             cherrypy.lib.auth_digest.digest_auth(realm, checkpassword, key)
         except Exception,e:
             if type(e)==type(cherrypy.HTTPError(404)):
@@ -309,6 +308,7 @@ class RedServer(object):
                     new_users[str(user)] = str(users[user])
                 key = str(key)
                 return(self.digest_auth(realm, new_users, key, customcheckpassword, password_salt))
+            print(self.trace_back(False))
         self.loggedinuser = cherrypy.request.login
         return(self.loggedinuser)
         
@@ -327,10 +327,10 @@ class RedServer(object):
                 self.basicauthend.append(endingwith)
     
     def _serve_static_file(self,virt_host,list,paramlines,filename):
-        # internal function, DO NOT use in page scripts.
+        # Internal function, DO NOT use in page scripts.
         cherrypy.response.status = 200
         logging("", 1, [cherrypy,virt_host,list,paramlines])
-        #caching header so that browsers can cache our content
+        # Caching header so that browsers can cache our content
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
         typedat = mimetypes.guess_type(filename)
         if not typedat==(None,None):
@@ -339,7 +339,7 @@ class RedServer(object):
             return(cherrypy.lib.static.serve_download(filename))
     
     def static_file_serve(self,filename,force_type=None,disposition=None,name=None):
-        #caching header so that browsers can cache our content
+        # Caching header so that browsers can cache our content
         if name==None:
             name=os.path.basename(filename)
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
@@ -1481,6 +1481,51 @@ def web_init(page_observer,config_observer):
     RedServ.debugger(3,port_statuses)
     if not os.name=="nt":
         cherrypy.engine.signals.subscribe()
+
+    def find_startup_init_files(directory):
+        for root, dirs, files in os.walk(directory):
+            if not root.endswith("Static"):
+                for basename in files:
+                    if basename=='_redserv_init_script_.py':
+                        filename = os.path.join(root, basename)
+                        yield filename
+
+    def exec_init_script(filename):
+        global site_glo_data
+        global site_shared_data
+        path_list = filename.replace(os.path.join(current_dir,'pages'),"")[1:].split(os.sep)
+        virt_host = '.'.join(reversed(path_list[0:2]))
+        virt_loc = os.path.join(current_dir,'pages',os.sep.join(path_list[:-1]))
+        RedServ.debugger(3,"Running start up script for: "+virt_host)
+        RedServ.debugger(3,"Init script: "+filename.replace(current_dir))
+        if not virt_host in site_glo_data:
+            site_glo_data[virt_host] = {}
+            if conf["database_connections"]==True:
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        if not virt_host in RedServ.error_pages:
+            RedServ.error_pages[virt_host] = RedServ.default_error_pages
+        local_error_pages = RedServ.error_pages[virt_host]
+        
+        datatoreturn = {
+        "filelocation":filename,
+        "vhost_location":virt_loc,
+        "local_error_pages":local_error_pages,
+        "this_domain":virt_host,
+        "global_site_data":site_shared_data,
+        "site_data":site_glo_data[virt_host]
+        }
+        datatoreturn.update(globals())
+        exec(compile(open(filename,'r').read(),filename,'exec'),datatoreturn)
+        RedServ.error_pages[virt_host] = local_error_pages
+        site_shared_data = datatoreturn['global_site_data']
+        site_glo_data[virt_host] = datatoreturn['site_data']
+        RedServ.noserve(virt_host,filename.replace(virt_loc,"")[1:])
+
+    for filename in find_startup_init_files(os.path.join(current_dir,'pages')):
+        if os.path.isfile(filename):
+            exec_init_script(filename)
+
     cherrypy.engine.start()
     RedServ.debugger(3,"Web server init finished\nYou are free for take off!") # yay!
     cherrypy.engine.block()
