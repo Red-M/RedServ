@@ -102,7 +102,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.8.0_beta"
+        self._version_string_ = "1.8.1_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -754,7 +754,7 @@ def vhosts(virt_host,conf):
     ]
     config_vhost_lookup = conf["vhost-lookup"].lower()
     hosts = os.listdir(os.path.abspath('pages'))
-    if ":" in virt_host:
+    if ":" in virt_host: # Clean out a port in the vhost, we don't need it.
         pos = virt_host.find(":")
         virt_host = virt_host[:pos]
     if config_vhost_lookup=="domains":
@@ -771,6 +771,10 @@ def vhosts(virt_host,conf):
                         hostlen = len(data)
                         logging("", 2, [data,virt_host,hostlen])
                         return(os.path.join(data,virt_host[:-hostlen]))
+                # We can't locate a vhost folder, we'll just provide the default behaviour as if we have found one.
+                data = virt_host[pos:]
+                hostlen = len(data)
+                return(os.path.join(data,virt_host[:-hostlen-1]))
         else:
             return(os.path.join(os.path.abspath('pages'),virt_host))
     if config_vhost_lookup=="single-hosts":
