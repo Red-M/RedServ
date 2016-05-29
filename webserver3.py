@@ -169,13 +169,13 @@ class RedServer(object):
     def trace_back(self,html=True):
         type_, value_, traceback_ = sys.exc_info()
         ex = traceback.format_exception(type_, value_, traceback_)
-        trace = ""
+        trace = u''
         for data in ex:
             trace = str(trace+data)
-        trace = cgi.escape(trace).encode('utf-8', 'xmlcharrefreplace')
         if html==True:
+            trace = cgi.escape(trace).encode('utf-8', 'xmlcharrefreplace')
             trace = trace.replace("\n","<br>")
-        return(trace)
+        return(str(trace))
         
     def TCP_dict_client(self, ip, port, message):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -727,7 +727,6 @@ def exec_page_script(filename,datatoreturn,python_page_cache):
     else:
         python_page_cache[filename].append(page_time)
         python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
-    print(python_page_cache[filename])
     exec(python_page_cache[filename][1],datatoreturn)
     return(datatoreturn)
 
@@ -1026,7 +1025,7 @@ def http_response(datatoreturn,params,virt_host,list,paramlines):
         RedServ.error_pages[virt_host] = local_error_pages
         cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
         raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
-    return(datatoreturn["datareturned"])
+    return(str(datatoreturn["datareturned"]))
 
 class WebInterface:
     """ main web interface class """
@@ -1156,19 +1155,19 @@ class WebInterface:
             if isinstance(sievedata['data'],type(cherrypy.HTTPRedirect(""))):
                 (https_redirect_str,cherrypy.response.status) = sievedata['data'].urls,sievedata['data'].status
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                raise sievedata
+                raise(sievedata['data'])
             if isinstance(sievedata['data'],type(cherrypy.HTTPError(404))):
-                status,error = sievedata['data']
+                status,error = sievedata['data'].code,sievedata['data'].reason
                 cherrypy.response.status = status
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                raise cherrypy
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
             
             no_serve_message = "404\n"+"/"+"/".join(list)
             if page in RedServ.noserving:
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                raise cherrypy
+                raise(cherrypy.HTTPError(404,no_serve_message))
             #if cherrypy.request.login==None:
             #    if (page in RedServ.basicauth) or (virt_host in RedServ.basicauth):
             #        bad = True
@@ -1232,7 +1231,7 @@ class WebInterface:
                         cherrypy.response.status = 404
                         cherrypy.response.headers["content-type"] = "text/plain"
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
-                        raise cherrypy
+                        raise(cherrypy.HTTPError(404))
             datatoreturn = {
             "sievetype":"out", 
             "params":params,
@@ -1269,12 +1268,12 @@ class WebInterface:
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     raise(e)
                 if isinstance(e,type(cherrypy.HTTPError(404))):
-                    status,error = e
+                    status,error = e.code,e.reason
                     cherrypy.response.status = status
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
-                    raise cherrypy
+                    raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
                 type_, value_, traceback_ = sys.exc_info()
                 ex = traceback.format_exception(type_, value_, traceback_)
                 trace = "\n".join(ex)
@@ -1289,14 +1288,14 @@ class WebInterface:
             if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPRedirect(""))):
                 (https_redirect_str,cherrypy.response.status) = datatoreturn["datareturned"].urls,datatoreturn["datareturned"].status
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                raise datatoreturn
+                raise(datatoreturn["datareturned"])
             if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPError(404))):
-                status,error = datatoreturn["datareturned"]
+                status,error = datatoreturn["datareturned"].code,datatoreturn["datareturned"].reason
                 cherrypy.response.status = status
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
-                raise cherrypy
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
             try:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
             except Exception as e:
@@ -1394,7 +1393,9 @@ def web_init(page_observer,config_observer):
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
         'tools.gzip.on':True,
         'tools.encode.on':True,
+        'tools.encode.encoding': 'utf-8',
         'tools.decode.on':True,
+        'tools.decode.encoding': 'utf-8',
         'tools.json_in.on': True,
         'tools.json_in.force': False,
         'tools.sessions.on':conf["sessions"],
