@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # RedServ
 # Copyright (C) 2016  Red_M ( http://bitbucket.com/Red_M )
 
@@ -14,14 +15,13 @@
 # You should have received a copy of the GNU General Public License along
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-#!/usr/bin/env python3
+
 #Help from Luke Rogers
 
 # TODO:
-#  - Add multiple ports for a single HTTP type (list or string can be put in the config)
-#  - Add custom 404 pages that can be made by the user.
-#  - Optimize
+#  - Sieve and page caches need to be replaced with a backgroundtask using: cherrypy.process.plugins.BackgroundTask(interval, function, args=[], kwargs={}, bus=None)
 #  - Investigate SSL further and see if we can get an A+ instead of A on SSL labs
+#  - Optimize
 import cherrypy
 import os
 import sys
@@ -35,10 +35,14 @@ import socket
 import random
 import sqlite3
 import ast
+import platform
 import urllib.request, urllib.parse, urllib.error
 import re
 import traceback
 import cgi
+import gc
+from watchdog.observers import Observer as watchdog_observer
+from watchdog.events import FileSystemEventHandler as watchdog_file_event_handler
 try:
     import OpenSSL
     SSL_imported = True
@@ -60,7 +64,6 @@ if sys.argv[0].split(os.sep)[-1] in os.listdir(current_dir):
     print("INFO: Found webserver path")
 else:
     print("INFO: Bad web server path")
-    print("INFO: "+current_dir)
     exit()
 
 
@@ -69,6 +72,9 @@ if current_dir.endswith(".zip"):
     exed = True
 site_glo_data = {}
 site_shared_data = {}
+python_page_cache = {}
+sieve_cache = {}
+config_cache = []
 
 class RedServer(object):
     def __init__(self):
@@ -89,15 +95,49 @@ class RedServer(object):
         self.basicauthstart = []
         self.basicauthend = []
         
+        self.servers = {}
+        self.servers["HTTPS"] = {}
+        self.servers["HTTP"] = {}
+        
+        self.background_services = {}
+        
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.5.1_beta"
+        self._version_string_ = "1.8.1_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
+        self.http_ports = []
         self.https_port = 8081
-        os.chdir('.' or sys.path[0])
-        self.current_dir = os.path.abspath('.')
-
+        self.https_ports = []
+        self.current_dir = current_dir
+    
+    def start_background_service(self,service_name,interval,function,args=[],kwargs={},bus=None):
+        if not service_name in self.background_services:
+            try:
+                self.background_services[service_name] = cherrypy.process.plugins.BackgroundTask(interval,function,args,kwargs,bus)
+                self.background_services[service_name].start()
+                return(self.background_services[service_name])
+            except Exception as e:
+                RedServ.debugger(1,self.trace_back(False))
+                del self.background_services[service_name]
+        else:
+            return(False)
+    
+    def stop_background_service(self,service_name):
+        if service_name in self.background_services:
+            try:
+                self.background_services[service_name].cancel()
+                return(True)
+            except Exception as e:
+                RedServ.debugger(1,self.trace_back(False))
+        else:
+            return(False)
+    
+    def gc_collect(self):
+        #self.debugger(3,str(gc.collect()))
+        gc.collect()
+        gc.collect()
+    
     def test(self,out):
         print(out)
         
@@ -108,15 +148,21 @@ class RedServer(object):
         cherrypy.response.headers['Content-Type'] = "text/plain"
         result = self.error_template % kwargs
         return(result.replace("\n\n\n","\n"))
-        
+    
+    def check_https(self,cherrypy):
+        if cherrypy.request.local.port in self.https_ports:
+            return(True)
+        else:
+            return(False)
+    
     def force_https(self,cherrypy,url,redirect=True):
         if redirect==True:
-            if not cherrypy.request.local.port==self.https_port:
+            if not cherrypy.request.local.port in self.https_ports:
                 if not url.startswith("https://"):
                     url = "https://"+url
-                raise cherrypy
-            else:
-                return("")
+                raise(cherrypy.HTTPRedirect(url))
+            #else:
+            #    return("")
         #add reserv based message saying to use https here.
             
     
@@ -155,6 +201,7 @@ class RedServer(object):
             return(e)
         
     def debugger(self,lvl=5,message=""):
+        message = str(message)
         if lvl==0:
             lvl = "FATAL"
         if lvl==1:
@@ -225,7 +272,7 @@ class RedServer(object):
             (nodename, v4, v6) = socket.gethostbyaddr(socket.gethostname())
         return(nodename)
     
-    def basic_auth(self, realm, users,customcheckpassword=None,password_salt=None):
+    def basic_auth(self, realm, users, customcheckpassword=None, password_salt=None):
         if customcheckpassword==None:
             checkpassword = cherrypy.lib.auth_basic.checkpassword_dict(users)
         else:
@@ -238,8 +285,30 @@ class RedServer(object):
             cherrypy.lib.auth_basic.basic_auth(realm, checkpassword)
         except Exception as e:
             if type(e)==type(cherrypy.HTTPError(404)):
-                status, error = e
-                raise cherrypy
+                raise(e)
+        self.loggedinuser = cherrypy.request.login
+        print("User: "+str(cherrypy.request.login))
+        return(self.loggedinuser)
+    
+    def digest_auth(self, realm, users, key, raw_passwords=False):
+        if raw_passwords==False:
+            checkpassword = cherrypy.lib.auth_digest.get_ha1_dict_plain(users)
+        else:
+            checkpassword = cherrypy.lib.auth_digest.get_ha1_dict(users)
+        try:
+            if not 'WWW-Authenticate' in cherrypy.response.headers:
+                cherrypy.response.headers['WWW-Authenticate'] = cherrypy.lib.auth_digest.www_authenticate(realm, key)
+            cherrypy.lib.auth_digest.digest_auth(realm, checkpassword, key)
+        except Exception as e:
+            if type(e)==type(cherrypy.HTTPError(404)):
+                raise(e)
+            if str(e).startswith("n must be a native str (got "):
+                new_users = {}
+                for user in users:
+                    new_users[str(user)] = str(users[user])
+                key = str(key)
+                return(self.digest_auth(realm, new_users, key, customcheckpassword, password_salt))
+            print((self.trace_back(False)))
         self.loggedinuser = cherrypy.request.login
         return(self.loggedinuser)
         
@@ -258,10 +327,10 @@ class RedServer(object):
                 self.basicauthend.append(endingwith)
     
     def _serve_static_file(self,virt_host,list,paramlines,filename):
-        # internal function, DO NOT use in page scripts.
+        # Internal function, DO NOT use in page scripts.
         cherrypy.response.status = 200
         logging("", 1, [cherrypy,virt_host,list,paramlines])
-        #caching header so that browsers can cache our content
+        # Caching header so that browsers can cache our content
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
         typedat = mimetypes.guess_type(filename)
         if not typedat==(None,None):
@@ -270,7 +339,7 @@ class RedServer(object):
             return(cherrypy.lib.static.serve_download(filename))
     
     def static_file_serve(self,filename,force_type=None,disposition=None,name=None):
-        #caching header so that browsers can cache our content
+        # Caching header so that browsers can cache our content
         if name==None:
             name=os.path.basename(filename)
         cherrypy.response.headers['Last-Modified'] = os.path.getmtime(filename)
@@ -282,40 +351,239 @@ class RedServer(object):
         else:
             return(self.staticfileserve(cherrypy.lib.static.serve_download(filename)))
 
+class PageFileEventHandler(object):
+
+    def redo_cache_check(self,event,domain_split):
+        if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+            sievepath = event.src_path
+            sievetime = os.path.getmtime(sievepath)
+            if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
+                #global sieve
+                sievename = "global"
+            else:
+                #normal sieve
+                this_domain = domain_split[-2]+"."+domain_split[-3]
+                #RedServ.noserve(this_domain,"sieve.py")
+                sievename = this_domain
+            if not sievename in sieve_cache:
+                sieve_cache[sievename] = []
+            if not sieve_cache[sievename]==[]:
+                if sieve_cache[sievename][0] < sievetime:
+                    sieve_cache[sievename][0] = sievetime
+                    try:
+                        sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                    except Exception as e:
+                        print((RedServ.trace_back(False)))
+            else:
+                sieve_cache[sievename].append(sievetime)
+                try:
+                    sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                except Exception as e:
+                    print((RedServ.trace_back(False)))
+        else:
+            filename = event.src_path
+            if not filename in python_page_cache:
+                python_page_cache[filename] = []
+            page_time = os.path.getmtime(filename)
+            if not python_page_cache[filename]==[]:
+                python_page_cache[filename][0] = page_time
+                try:
+                    python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
+                except Exception as e:
+                    print((RedServ.trace_back(False)))
+            else:
+                python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                try:
+                    python_page_cache[filename].append(page_time)
+                except Exception as e:
+                    print((RedServ.trace_back(False)))
+
+
+    def on_any_event(self, event):
+        """Catch-all event handler.
+
+        :param event:
+            The event object representing the file system event.
+        :type event:
+            :class:`FileSystemEvent`
+        """
+
+    def on_moved(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Moved: "+event.src_path+" to: "+event.dest_path)
+            if event.src_path.endswith(".py") and event.dest_path.endswith(".py"):
+                if not os.stat(event.src_path).st_size==0:
+                    domain_split = event.src_path.split(os.sep)
+                    old_domain_split = event.src_path.split(os.sep)
+                    if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+                        sievepath = event.dest_path
+                        sievetime = os.path.getmtime(sievepath)
+                        if event.dest==os.path.join(current_dir,"pages","sieve.py"):
+                            #global sieve
+                            sievename = "global"
+                        else:
+                            #normal sieve
+                            this_domain = domain_split[-2]+"."+domain_split[-3]
+                            #RedServ.noserve(this_domain,"sieve.py")
+                            sievename = this_domain
+                            del sieve_cache[old_domain_split[-2]+"."+old_domain_split[-3]]
+                        if not sievename in sieve_cache:
+                            sieve_cache[sievename] = []
+                        if not sieve_cache[sievename]==[]:
+                            if sieve_cache[sievename][0] < sievetime:
+                                sieve_cache[sievename][0] = sievetime
+                                try:
+                                    sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                except Exception as e:
+                                    print((RedServ.trace_back(False)))
+                        else:
+                            sieve_cache[sievename].append(sievetime)
+                            try:
+                                sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                            except Exception as e:
+                                print((RedServ.trace_back(False)))
+                    else:
+                        filename = event.dest_path
+                        if not filename in python_page_cache:
+                            python_page_cache[filename] = []
+                        page_time = os.path.getmtime(filename)
+                        if not python_page_cache[filename]==[]:
+                            python_page_cache[filename][0] = page_time
+                            try:
+                                python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
+                            except Exception as e:
+                                print((RedServ.trace_back(False)))
+                        else:
+                            python_page_cache[filename].append(page_time)
+                            try:
+                                python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                            except Exception as e:
+                                print((RedServ.trace_back(False)))
+                        del python_page_cache[event.src_path]
+                else:
+                    if event.src_path.endswith(".py") and (not event.dest_path.endswith(".py")):
+                        self.on_deleted(event)
+
+
+    def on_deleted(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Deleted: "+event.src_path)
+            if event.src_path.endswith(".py"):
+                domain_split = event.src_path.split(os.sep)
+                if event.src_path.endswith("sieve.py") and (domain_split[-4]=="pages" or (domain_split[-2]=="pages" and domain_split[-1]=="sieve.py")):
+                    sievepath = event.src_path
+                    if event.src_path==os.path.join(current_dir,"pages","sieve.py"):
+                        #global sieve
+                        sievename = "global"
+                    else:
+                        #normal sieve
+                        this_domain = domain_split[-2]+"."+domain_split[-3]
+                        #RedServ.noserve(this_domain,"sieve.py")
+                        sievename = this_domain
+                    if sievename in sieve_cache:
+                        del sieve_cache[sievename]
+                else:
+                    filename = event.src_path
+                    if filename in python_page_cache:
+                        del python_page_cache[filename]
+
+    def on_created(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Created: "+event.src_path)
+            if event.src_path.endswith(".py"):
+                if not os.stat(event.src_path).st_size==0:
+                    domain_split = event.src_path.split(os.sep)
+                    self.redo_cache_check(event,domain_split)
+
+    def on_modified(self, event):
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            #RedServ.debugger(3,"Changed: "+event.src_path)
+            if event.src_path.endswith(".py"):
+                if not os.stat(event.src_path).st_size==0:
+                    domain_split = event.src_path.split(os.sep)
+                    self.redo_cache_check(event,domain_split)
+
+class ConfigFileEventHandler(object):
+
+    def on_any_event(self, event):
+        """Catch-all event handler.
+
+        :param event:
+            The event object representing the file system event.
+        :type event:
+            :class:`FileSystemEvent`
+        """
+
+    def on_moved(self, event):
+        pass
+
+    def on_created(self, event):
+        global conf
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            if event.src_path.split(os.sep)[-1]=="config":
+                #RedServ.debugger(3,"Created: "+event.src_path)
+                if not os.stat(event.src_path).st_size==0:
+                    conf = conf_reload(conf)
+
+    def on_deleted(self, event):
+        pass
+
+    def on_modified(self, event):
+        global conf
+        what = 'directory' if event.is_directory else 'file'
+        if what=='file':
+            if event.src_path.split(os.sep)[-1]=="config":
+                #RedServ.debugger(3,"Changed: "+event.src_path)
+                if not os.stat(event.src_path).st_size==0:
+                    conf = conf_reload(conf)
+
 class staticfileserve(Exception):
      def __init__(self, value):
          self.value = value
      def __str__(self):
          return repr(self.value)
- 
+
+def get_config_default():
+    config_file_data = {
+        "default_404": True,
+        "vhosts-enabled": True,
+        "vhost-lookup": "domains",
+        "sessions": False,
+        "php": False,
+        "database_connections": False,
+        "page_response_check": 1,
+        "page_request_timeout": 30,
+        "logs_to_screen":False,
+        "cherrypy_access_logs":"",
+        "log": True
+    }
+    config_file_data["HTTP"] = {
+        "reverse_proxied":False,
+        "enabled":False,
+        "thread_pool":50,
+        "socket_queue":50,
+        "ports":[8081]
+    }
+    config_file_data["HTTPS"] = {
+        "reverse_proxied":False,
+        "enabled":False,
+        "thread_pool":50,
+        "socket_queue":50,
+        "ports":[8082],
+        "CA_cert":"default-ca.pem",
+        "cert":"certs/cert.crt",
+        "cert_private_key":"certs/privkey.key"
+    }
+    return(config_file_data)
+
 def config_init(config_location):
     if not os.path.exists(config_location):
-        config_file_data = {
-            "default_404": True,
-            "vhosts-enabled": True,
-            "vhost-lookup": "domains",
-            "sessions": False,
-            "php": False,
-            "database_connections": False,
-            "log": True
-        }
-        config_file_data["HTTP"] = {
-            "reverse_proxied":False,
-            "enabled":False,
-            "thread_pool":50,
-            "socket_queue":50,
-            "port":8081
-        }
-        config_file_data["HTTPS"] = {
-            "reverse_proxied":False,
-            "enabled":False,
-            "thread_pool":50,
-            "socket_queue":50,
-            "port":8081,
-            "CA_cert":"default-ca.pem",
-            "cert":"cert.crt",
-            "cert_private_key":"privkey.key"
-        }
+        config_file_data = get_config_default()
         open(config_location, 'w').write(json.dumps(config_file_data, sort_keys=True,indent=2, separators=(',', ': ')))
 
 def config(config_location):
@@ -372,17 +640,14 @@ folderext = [
 
 
 def filepicker(filename,fileext):
+    #RedServ.debugger(3,filename)
     for data in fileext:
-        if not data.startswith("."):
-            file = os.path.join(filename,data)
-        else:
+        if data.startswith("."):
             file = filename+data
-        if os.path.exists(file):
-            try:
-                if os.path.isfile(file):
-                    return(file)
-            except Exception as e:
-                pass
+        else:
+            file = os.path.join(filename,data)
+        if os.path.exists(file) and os.path.isfile(file):
+            return(file)
     return(filename)
     
 def ssl_cert_directory(cert_dir="."):
@@ -431,7 +696,8 @@ def sieve(sievedata,sieve_cache):
         (sievepath,sievename) = data
         if not sievename in sieve_cache:
             sieve_cache[sievename] = []
-        (sievedata,sieve_cache[sievename]) = sieve_exec(sievedata,sieve_cache[sievename],sievepath,sievename)
+        if sievedata['return_after_this']==False:
+            (sievedata,sieve_cache[sievename]) = sieve_exec(sievedata,sieve_cache[sievename],sievepath,sievename)
     return(sievedata,sieve_cache)
 
 def sieve_exec(sievedata,sievecache,sievepath,sievename):
@@ -440,14 +706,14 @@ def sieve_exec(sievedata,sievecache,sievepath,sievename):
         if not sievename=="global":
             RedServ.noserve(sievedata["this_domain"],"sieve.py")
         if not sievecache==[]:
-            if sievecache[1] < sievetime:
-                sievecache[0] = compile(open(sievepath,'r').read(),sievepath,'exec')
-                sievecache[1] = sievetime
+            if sievecache[0] < sievetime:
+                sievecache[0] = sievetime
+                sievecache[1] = compile(open(sievepath,'r').read(),sievepath,'exec')
         else:
-            sievecache.append(compile(open(sievepath,'r').read(),sievepath,'exec'))
             sievecache.append(sievetime)
+            sievecache.append(compile(open(sievepath,'r').read(),sievepath,'exec'))
         sievedata.update(globals())
-        exec(sievecache[0],sievedata)
+        exec(sievecache[1],sievedata)
     return(sievedata,sievecache)
     
 def exec_page_script(filename,datatoreturn,python_page_cache):
@@ -455,13 +721,14 @@ def exec_page_script(filename,datatoreturn,python_page_cache):
         python_page_cache[filename] = []
     page_time = os.path.getmtime(filename)
     if not python_page_cache[filename]==[]:
-        if python_page_cache[filename][1] < page_time:
-            python_page_cache[filename][0] = compile(open(filename,'r').read(),filename,'exec')
-            python_page_cache[filename][1] = page_time
+        if python_page_cache[filename][0] < page_time:
+            python_page_cache[filename][0] = page_time
+            python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
     else:
-        python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
         python_page_cache[filename].append(page_time)
-    exec(python_page_cache[filename][0],datatoreturn)
+        python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+    print(python_page_cache[filename])
+    exec(python_page_cache[filename][1],datatoreturn)
     return(datatoreturn)
 
 def get_db_connection(name,folders=None):
@@ -488,7 +755,7 @@ def vhosts(virt_host,conf):
     ]
     config_vhost_lookup = conf["vhost-lookup"].lower()
     hosts = os.listdir(os.path.abspath('pages'))
-    if ":" in virt_host:
+    if ":" in virt_host: # Clean out a port in the vhost, we don't need it.
         pos = virt_host.find(":")
         virt_host = virt_host[:pos]
     if config_vhost_lookup=="domains":
@@ -505,6 +772,10 @@ def vhosts(virt_host,conf):
                         hostlen = len(data)
                         logging("", 2, [data,virt_host,hostlen])
                         return(os.path.join(data,virt_host[:-hostlen]))
+                # We can't locate a vhost folder, we'll just provide the default behaviour as if we have found one.
+                data = virt_host[pos:]
+                hostlen = len(data)
+                return(os.path.join(data,virt_host[:-hostlen-1]))
         else:
             return(os.path.join(os.path.abspath('pages'),virt_host))
     if config_vhost_lookup=="single-hosts":
@@ -528,21 +799,21 @@ def notfound(cherrypy,virt_host,paramlines,list,params):
     cherrypy.response.headers["content-type"] = "text/plain"
     logging("",1,[cherrypy,virt_host,list,paramlines])
     (sysname, nodename, release, version, machine) = os.uname()
-    raise cherrypy
+    raise(cherrypy.HTTPError(404,str("/"+"/".join(list))+debughandler(params)))
     
 def notfound2(cherrypy,e,virtloc,params):
     cherrypy.response.status = 404
     cherrypy.response.headers["content-type"] = "text/plain"
     (sysname, nodename, release, version, machine) = os.uname()
-    raise cherrypy
+    raise(cherrypy.HTTPError(404,str(e).replace(virtloc,"/")+debughandler(params)))
     
 def PHP(path):
     proc = subprocess.check_output(["php",path])
     return(proc)
     
 def debughandler(params,debugtable=[]):
-    if "debug" in params:
-        if params["debug"]=="1":
+    if "redserv-debug" in params:
+        if params["redserv-debug"]=="1":
             if "v" in params:
                 if not params["v"] == "1":
                     debuginfo = "\n"+RedServ.sysinfo()
@@ -565,6 +836,10 @@ def logging(logline,logtype,*extra):
                 list = extra[2]
                 paramlines = extra[3]
                 this_page = virt_host+"/"+"/".join(list)
+                proto = "http"
+                if RedServ.check_https(cherrypy)==True:
+                    proto = proto+"s"
+                proto = proto+"://"
                 no_log = False # varible to decide to log or to not to log.
                 if len(RedServ.nologgingstart)>0:
                     for data in RedServ.nologgingstart:
@@ -584,9 +859,9 @@ def logging(logline,logtype,*extra):
                 if no_log==False:
                     logline = str(time.strftime("[%I:%M:%S %p]	"))+ \
                     str(cherrypy.request.remote.ip)+"	["+cherrypy.request.method+"("+str(cherrypy.response.status)+\
-                    ")]	["+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
+                    ")]	["+proto+virt_host+"/"+"/".join(list)+paramlines+"]	"+ \
                     str(cherrypy.request.headers)+"	"+str(cherrypy.request.body.params)+"\n"
-                
+                #<"+cherrypy.request.stage+">
             if logtype == 2: #bad vhost log line
                 data = extra[0]
                 virt_host = extra[1]
@@ -613,6 +888,8 @@ def conf_update_print(new_conf,old_conf):
             "vhosts-enabled":"Virtual hosts are now",
             "php":"PHP is now",
             "log":"Logging is now",
+            "page_response_check":"Page response checks are now",
+            "page_request_timeout":"Page request time outs are now",
             "database_connections":"Database connections are now"
     }
     for data in options:
@@ -633,33 +910,101 @@ def conf_reload(conf):
     if not old_time==config_cache[1]:
         new_conf["HTTP"]["enabled"] = old_conf["HTTP"]["enabled"]
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
-        if not new_conf["HTTP"]["port"]==old_conf["HTTP"]["port"]:
-            print(("Please restart RedServ to change port on HTTP to "+str(new_conf["HTTP"]["port"])))
-            #RedServ.server2.unsubscribe()
-            #RedServ.server2.stop()
-            #RedServ.server2.socket_port=new_conf["HTTP"]["port"]
-            #RedServ.server2.start()
-            #RedServ.server2.subscribe()
-            #print(dir(RedServ.server2))
-            #cherrypy.engine.restart()
-        if not new_conf["HTTPS"]["port"]==old_conf["HTTPS"]["port"]:
-            #RedServ.server1.unsubscribe()
-            ##RedServ.server1.stop()
-            #RedServ.server1.thread_pool=new_conf["HTTPS"]["thread_pool"]
-            #RedServ.server1.socket_queue_size=new_conf["HTTPS"]["socket_queue"]
-            #RedServ.server1.socket_port=new_conf["HTTPS"]["port"]
-            #if new_conf["HTTPS"]["CA_cert"]=="default-ca.pem" or new_conf["HTTPS"]["CA_cert"]=="":
-            #    new_conf["HTTPS"]["CA_cert"] = None
-            #if os.path.exists(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"])) and not new_conf["HTTPS"]["CA_cert"]==None:
-            #    RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"]))
-            #RedServ.server1.subscribe()
-            #RedServ.server1.start()
-            #cherrypy.engine.restart()
-            print(("Please restart RedServ to change port on HTTPS to "+str(new_conf["HTTPS"]["port"])))
-        #new_conf["HTTP"]["port"] = STDPORT
-        #new_conf["HTTPS"]["port"] = SSLPORT
+        if (not new_conf["HTTP"]["ports"]==old_conf["HTTP"]["ports"]) and False: #disabled for now, has issues wherein the entire web server locks up or new ports don't start.
+            new_http_ports = ""
+            old_http_ports = ""
+            for port in RedServ.servers["HTTP"]:
+                if not port in new_conf["HTTP"]["ports"]:
+                    RedServ.servers["HTTP"][port].stop()
+                    old_http_ports = old_http_ports+str(port)+", "
+            print(("Stopped http on ports: "+old_http_ports[:-2]))
+            for port in new_conf["HTTP"]["ports"]:
+                if not port in old_conf["HTTP"]["ports"]:
+                    RedServ.servers["HTTP"][port] = cherrypy._cpserver.Server()
+                    RedServ.servers["HTTP"][port].socket_port=port
+                    RedServ.servers["HTTP"][port].socket_host='0.0.0.0'
+                    RedServ.servers["HTTP"][port].thread_pool=new_conf["HTTP"]["thread_pool"]
+                    RedServ.servers["HTTP"][port].socket_queue_size=new_conf["HTTP"]["socket_queue"]
+                    RedServ.servers["HTTP"][port].thread_pool_max=-1
+                    RedServ.servers["HTTP"][port].shutdown_timeout=1
+                    RedServ.servers["HTTP"][port].socket_timeout=3
+                    #RedServ.servers["HTTP"][port].statistics=True
+                    RedServ.servers["HTTP"][port].subscribe()
+                    RedServ.servers["HTTP"][port].start()
+                    new_http_ports = new_http_ports+str(port)+", "
+            STDPORT = conf["HTTP"]["ports"][0]
+            RedServ.http_port = STDPORT
+            RedServ.http_ports = conf["HTTP"]["ports"]
+            print(("Started HTTP on: "+new_http_ports[:-2]))
+        if (not new_conf["HTTPS"]["ports"]==old_conf["HTTPS"]["ports"]) and False:
+            new_https_ports = ""
+            old_https_ports = ""
+            removed_any_https_ports = False
+            for port in RedServ.servers["HTTPS"]:
+                if not port in new_conf["HTTPS"]["ports"]:
+                    removed_any_https_ports = True
+                    RedServ.servers["HTTPS"][port].stop()
+                    old_https_ports = old_https_ports+str(port)+", "
+            if removed_any_https_ports==True:
+                print(("Stopped HTTPS on ports: "+old_https_ports[:-2]))
+            for port in new_conf["HTTPS"]["ports"]:
+                if not port in old_conf["HTTPS"]["ports"]:
+                    RedServ.servers["HTTPS"][port] = cherrypy._cpserver.Server()
+                    RedServ.servers["HTTPS"][port].socket_port=port
+                    RedServ.servers["HTTPS"][port].socket_host='0.0.0.0'
+                    RedServ.servers["HTTPS"][port].thread_pool=new_conf["HTTPS"]["thread_pool"]
+                    RedServ.servers["HTTPS"][port].socket_queue_size=new_conf["HTTPS"]["socket_queue"]
+                    RedServ.servers["HTTPS"][port].thread_pool_max=-1
+                    RedServ.servers["HTTPS"][port].shutdown_timeout=1
+                    RedServ.servers["HTTPS"][port].socket_timeout=3
+                    #RedServ.servers["HTTPS"][port].statistics=True
+                    RedServ.servers["HTTPS"][port].ssl_module = 'custom-pyopenssl'
+                    RedServ.servers["HTTPS"][port].ssl_certificate = os.path.join(current_dir,new_conf["HTTPS"]["cert"])
+                    RedServ.servers["HTTPS"][port].ssl_private_key = os.path.join(current_dir,new_conf["HTTPS"]["cert_private_key"])
+                    if new_conf["HTTPS"]["CA_cert"]=="default-ca.pem" or new_conf["HTTPS"]["CA_cert"]=="":
+                        new_conf["HTTPS"]["CA_cert"] = None
+                    if not new_conf["HTTPS"]["CA_cert"]==None:
+                        if os.path.exists(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"])):
+                            RedServ.servers["HTTPS"][port].ssl_certificate_chain = str(os.path.join(current_dir,new_conf["HTTPS"]["CA_cert"]))
+                    RedServ.servers["HTTPS"][port].subscribe()
+                    new_https_ports = new_https_ports+str(port)+", "
+            SSLPORT = conf["HTTPS"]["ports"][0]
+            RedServ.https_ports = conf["HTTPS"]["ports"]
+            RedServ.https_port = SSLPORT
+            print(("Started HTTPS on: "+new_https_ports[:-2]))
         if not new_conf["vhost-lookup"]==old_conf["vhost-lookup"]:
             RedServ.debugger(3,"Virtual Host look up is now done by "+new_conf["vhost-lookup"])
+        
+        #Update Cherrypy's config
+        site_logfolder = os.path.join(current_dir,"logs","site",RedServ.sysinfo(),time.strftime("%Y"), time.strftime("%m"))
+        site_logfile = os.path.join(site_logfolder,time.strftime("%d")+".txt")
+        if not os.path.exists(site_logfolder):
+            os.makedirs(site_logfolder)
+        global_conf = {
+            'global': { 'engine.autoreload.on': False,
+            'environment': 'embedded',
+            'log.error_file': site_logfile,
+            'log.screen': conf["logs_to_screen"],
+            'gzipfilter.on':True,
+            'tools.caching.on':False,
+            'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
+            'tools.gzip.on':True,
+            'tools.encode.on':True,
+            'tools.decode.on':True,
+            'tools.json_in.on': True,
+            'tools.json_in.force': False,
+            'tools.sessions.on':conf["sessions"],
+            'tools.sessions.locking':'explicit',
+            #'tools.sessions.secure':conf["sessions"],
+            'response.timeout': conf["page_request_timeout"],
+            'engine.timeout_monitor.on':True,
+            'engine.timeout_monitor.frequency':conf["page_response_check"]
+        }}
+        if not (os.path.join(current_dir,conf["cherrypy_access_logs"])==current_dir or conf["cherrypy_access_logs"]==""):
+            global_conf['global']['log.access_file'] = os.path.join(current_dir,conf["cherrypy_access_logs"])
+        cherrypy.config.update(global_conf)
+        
+        
         conf_update_print(new_conf,old_conf)
     return(new_conf)
 
@@ -671,16 +1016,16 @@ def http_response(datatoreturn,params,virt_host,list,paramlines):
     if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPRedirect(""))):
         (https_redirect_str,cherrypy.response.status) = datatoreturn["datareturned"]
         logging("", 1, [cherrypy,virt_host,list,paramlines])
-        raise datatoreturn
+        raise(datatoreturn["datareturned"])
     if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPError(404))):
-        status,error = datatoreturn["datareturned"]
+        status,error = datatoreturn["datareturned"].code,datatoreturn["datareturned"].reason
         cherrypy.response.status = status
         cherrypy.response.headers["content-type"] = "text/plain"
         logging("", 1, [cherrypy,virt_host,list,paramlines])
         local_error_pages = datatoreturn["local_error_pages"]
         RedServ.error_pages[virt_host] = local_error_pages
         cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
-        raise cherrypy
+        raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
     return(datatoreturn["datareturned"])
 
 class WebInterface:
@@ -691,12 +1036,12 @@ class WebInterface:
         global cherrypy
         global site_glo_data
         global site_shared_data
-        global conf
         global python_page_cache
         global sieve_cache
         global STDPORT
         global SSLPORT
-        conf = conf_reload(conf)
+        #global conf
+        #conf = conf_reload(conf)
         
         RedServ.http_port = STDPORT
         RedServ.https_port = SSLPORT
@@ -714,9 +1059,9 @@ class WebInterface:
             paramlines = "?"+cherrypy.request.query_string
         if "host" in cherrypy.request.headers or rproxied_test==True:
             if "host" in cherrypy.request.headers:
-                virt_host = cherrypy.request.headers["host"]
+                virt_host = cherrypy.request.headers["host"].lower()
             if rproxied_test==True:
-                virt_host = cherrypy.request.headers["X-Forwarded-Host"]
+                virt_host = cherrypy.request.headers["X-Forwarded-Host"].lower()
         else:
             cherrypy.response.status = 404
             logging("", 1, [cherrypy,"No host header",list,paramlines])
@@ -727,13 +1072,12 @@ class WebInterface:
         if cherrypy.request.local.port==SSLPORT:
             if conf["HTTPS"]["reverse_proxied"]==True:
                 cherrypy.request.remote.ip = cherrypy.request.headers['X-Forwarded-For']
-            
-        try:
-            if conf["vhosts-enabled"]==True:
-                virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
-            else:
-                virtloc = os.path.abspath('pages')+os.sep
-        except Exception as e:
+
+        if conf["vhosts-enabled"]==True:
+            virtloc = os.path.join(os.path.abspath('pages'),vhosts(virt_host,conf))+os.sep
+        else:
+            virtloc = os.path.abspath('pages')+os.sep
+        if not os.path.exists(virtloc):
             cherrypy.response.status = 404
             logging("", 1, [cherrypy,virt_host,list,paramlines])
             return("")
@@ -759,7 +1103,7 @@ class WebInterface:
         
     ###Start
         filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
-        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")):
+        if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")) or os.path.exists(os.path.join(os.path.abspath(virtloc),"sieve.py")):
             page = virt_host+"/"+"/".join(list)
             datsieve = ""
             sievedata = {
@@ -776,6 +1120,7 @@ class WebInterface:
             "bad":bad,
             "params":params,
             "global_site_data":site_shared_data,
+            "return_after_this":False,
             "site_data":site_glo_data[virt_host]
             }
             try:
@@ -784,15 +1129,15 @@ class WebInterface:
                 if isinstance(e,type(RedServ.staticfileserve(""))):
                     return(e.value)
                 if isinstance(e,type(cherrypy.HTTPRedirect(""))):
-                    (https_redirect_str,cherrypy.response.status) = e
+                    (https_redirect_str,cherrypy.response.status) = e.urls,e.status
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     raise(e)
                 if isinstance(e,type(cherrypy.HTTPError(404))):
-                    status,error = e
+                    status,error = e.code,e.reason
                     cherrypy.response.status = status
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    raise cherrypy
+                    raise(cherrypy.HTTPError(status,error))
                 cherrypy.response.status = 404
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
@@ -801,13 +1146,15 @@ class WebInterface:
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
             local_error_pages = sievedata['local_error_pages']
+            site_shared_data = sievedata['global_site_data']
+            site_glo_data[virt_host] = sievedata['site_data']
             RedServ.error_pages[virt_host] = local_error_pages
             cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
             list = sievedata['URI'].split("/")
             if isinstance(sievedata['data'],type(RedServ.staticfileserve(""))):
                 return(sievedata['data'].value)
             if isinstance(sievedata['data'],type(cherrypy.HTTPRedirect(""))):
-                (https_redirect_str,cherrypy.response.status) = sievedata['data']
+                (https_redirect_str,cherrypy.response.status) = sievedata['data'].urls,sievedata['data'].status
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 raise sievedata
             if isinstance(sievedata['data'],type(cherrypy.HTTPError(404))):
@@ -828,6 +1175,10 @@ class WebInterface:
             #        datatoreturn["datareturned"] = "Please login."
             #        cherrypy.response.status = 401
             #   ^ handle basic auth protection requests and make sure to add input of a realm and a user list.    
+        else:
+            sievedata = {
+            "return_after_this":False
+            }
         if bad == False:
             headers = {}
             responsecode = 200
@@ -852,26 +1203,25 @@ class WebInterface:
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return("404")
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
-            try:
-                bang = os.listdir(filename)
-            except Exception as e:
-                bang = ""
-                if str(e).startswith("[Errno 2]"):
+            if os.path.exists(filename):
+                if os.path.isfile(filename):
                     filename = filepicker(filename,fileext)
-                    if not os.path.exists(filename) or filename==None:
+                else:
+                    try:
+                        filename = filepicker(filename,folderext)
+                        open(filename, 'r')
+                    except Exception as e:
                         cherrypy.response.status = 404
                         cherrypy.response.headers["content-type"] = "text/plain"
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         return(notfound2(cherrypy,e,virtloc,params))
-                if str(e).startswith("[Errno 20]"):
-                    filename = filepicker(filename,fileext)
-            if not bang=="":
-                try:
-                    filename = filepicker(filename,folderext)
-                    open(filename, 'r')
-                except Exception as e:
+            else:
+                filename = filepicker(filename,fileext)
+                if not os.path.exists(filename) or filename==None:
+                    cherrypy.response.status = 404
+                    cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(notfound2(cherrypy,e,virtloc,params))
+                    return(notfound2(cherrypy,"File Not Found.",virtloc,params))
             if not (filename.endswith(".py") or filename.endswith(".php")):
                 if os.path.exists(filename):
                     return(RedServ._serve_static_file(virt_host,list,paramlines,filename))
@@ -897,6 +1247,7 @@ class WebInterface:
             "this_page":virt_host+"/"+"/".join(list),
             "this_domain":virt_host,
             "global_site_data":site_shared_data,
+            "return_after_this":sievedata['return_after_this'],
             "site_data":site_glo_data[virt_host],
             "http_port":STDPORT,
             "https_port":SSLPORT
@@ -914,7 +1265,7 @@ class WebInterface:
                 if isinstance(e,type(RedServ.staticfileserve(""))):
                     return(e.value)
                 if isinstance(e,type(cherrypy.HTTPRedirect(""))):
-                    (https_redirect_str,cherrypy.response.status) = e
+                    (https_redirect_str,cherrypy.response.status) = e.urls,e.status
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     raise(e)
                 if isinstance(e,type(cherrypy.HTTPError(404))):
@@ -936,7 +1287,7 @@ class WebInterface:
             if isinstance(datatoreturn["datareturned"],type(RedServ.staticfileserve(""))):
                 return(datatoreturn["datareturned"].value)
             if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPRedirect(""))):
-                (https_redirect_str,cherrypy.response.status) = datatoreturn["datareturned"]
+                (https_redirect_str,cherrypy.response.status) = datatoreturn["datareturned"].urls,datatoreturn["datareturned"].status
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 raise datatoreturn
             if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPError(404))):
@@ -952,7 +1303,7 @@ class WebInterface:
                 if isinstance(e,type(RedServ.staticfileserve(""))):
                     return(e.value)
                 if isinstance(e,type(cherrypy.HTTPRedirect(""))):
-                    (https_redirect_str,cherrypy.response.status) = e
+                    (https_redirect_str,cherrypy.response.status) = e.urls,e.status
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
                     raise(e)
                 if isinstance(e,type(cherrypy.HTTPError(404))):
@@ -987,8 +1338,10 @@ class WebInterface:
     default.exposed = True
         
 
-def web_init():
+def web_init(page_observer,config_observer):
     print("INFO: Initialising web server...")
+    print('INFO: Python version: '+'%s %s' %
+                (platform.python_implementation(),platform.python_version()))
     from cherrypy._cpnative_server import CPHTTPServer
     cherrypy.server.httpserver = CPHTTPServer(cherrypy.server)
     os.chdir(current_dir)
@@ -1008,14 +1361,17 @@ def web_init():
             os.mkdir(os.path.abspath(data))
     global RedServ
     RedServ = RedServer()
+    page_observer.start()
+    config_observer.start()
+    RedServ.debugger(3,"Started file watchdogs.")
+    RedServ.debugger(3,"CherryPy version: "+cherrypy.__version__+" HTTP server version: "+cherrypy.server.httpserver.version)
     cherrypy.server.httpserver.version = RedServ._version_
     cherrypy.__version__ = RedServ._version_
     RedServ.debugger(3,"Starting RedServ version: "+RedServ._version_string_)
+    RedServ.start_background_service("__internal__RedServ__service__mem_clean_up",30,RedServ.gc_collect)
     # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
     conflocation = os.path.join(current_dir,"config")
     config_init(conflocation)
-    global config_cache
-    config_cache = []
     config_cache.append(json.load(open(conflocation)))
     config_cache.append(os.path.getmtime(conflocation))
     global conf
@@ -1032,8 +1388,9 @@ def web_init():
         'global': { 'engine.autoreload.on': False,
         'environment': 'embedded',
         'log.error_file': site_logfile,
-        'log.screen': False,
+        'log.screen': conf["logs_to_screen"],
         'gzipfilter.on':True,
+        'tools.caching.on':False,
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
         'tools.gzip.on':True,
         'tools.encode.on':True,
@@ -1043,10 +1400,12 @@ def web_init():
         'tools.sessions.on':conf["sessions"],
         'tools.sessions.locking':'explicit',
         #'tools.sessions.secure':conf["sessions"],
-        'response.timeout': 300,
+        'response.timeout': conf["page_request_timeout"],
         'engine.timeout_monitor.on':True,
-        'engine.timeout_monitor.frequency':60
+        'engine.timeout_monitor.frequency':conf["page_response_check"]
     }}
+    if not (os.path.join(current_dir,conf["cherrypy_access_logs"])==current_dir or conf["cherrypy_access_logs"]==""):
+        global_conf['global']['log.access_file'] = os.path.join(current_dir,conf["cherrypy_access_logs"])
     cherrypy.config.update(global_conf)
     web_interface = WebInterface()
     tree_mount = cherrypy.tree.mount(web_interface, '/')
@@ -1056,18 +1415,20 @@ def web_init():
     cherrypy.server.stop()
 
     global STDPORT
-    STDPORT = conf["HTTP"]["port"]
+    STDPORT = conf["HTTP"]["ports"][0]
+    RedServ.http_port = STDPORT
+    RedServ.http_ports = conf["HTTP"]["ports"]
     global SSLPORT
-    SSLPORT = conf["HTTPS"]["port"]
+    SSLPORT = conf["HTTPS"]["ports"][0]
+    RedServ.https_ports = conf["HTTPS"]["ports"]
+    RedServ.https_port = SSLPORT
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
+        from util import ssl_fix
         if sys.version_info < (3, 0):
-            from util import ssl_fix
             from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
-            ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
         else:
-            from util import ssl_fix
             from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
-            ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
+        ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if not (os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert"])) and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert_private_key"]))):
             SSL_cert_gen(RedServ.sysinfo(),os.path.abspath("certs"))
@@ -1075,57 +1436,138 @@ def web_init():
             conf["HTTPS"]["cert"] = os.path.join('certs','cert.pem')
         if conf["HTTPS"]["cert_private_key"]=="":
             conf["HTTPS"]["cert_private_key"] = os.path.join('certs','privkey.pem')
-        RedServ.server1 = cherrypy._cpserver.Server()
-        RedServ.server1.socket_port=SSLPORT
-        RedServ.server1.socket_host='0.0.0.0'
-        RedServ.server1.thread_pool=conf["HTTPS"]["thread_pool"]
-        RedServ.server1.socket_queue_size=conf["HTTPS"]["socket_queue"]
-        RedServ.server1.thread_pool_max=-1
-        RedServ.server1.shutdown_timeout=1
-        RedServ.server1.socket_timeout=3
-        #RedServ.server1.statistics=True
-        RedServ.server1.ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
-        RedServ.server1.ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
-        if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
-            conf["HTTPS"]["CA_cert"] = None
-        if not conf["HTTPS"]["CA_cert"]==None:
-            if os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])):
-                RedServ.server1.ssl_certificate_chain = str(os.path.join(current_dir,conf["HTTPS"]["CA_cert"]))
-        RedServ.server1.subscribe()
+        for port in RedServ.https_ports:
+            RedServ.servers["HTTPS"][port] = cherrypy._cpserver.Server()
+            RedServ.servers["HTTPS"][port].socket_port=port
+            RedServ.servers["HTTPS"][port].socket_host='0.0.0.0'
+            RedServ.servers["HTTPS"][port].thread_pool=conf["HTTPS"]["thread_pool"]
+            RedServ.servers["HTTPS"][port].socket_queue_size=conf["HTTPS"]["socket_queue"]
+            RedServ.servers["HTTPS"][port].thread_pool_max=-1
+            RedServ.servers["HTTPS"][port].shutdown_timeout=1
+            RedServ.servers["HTTPS"][port].socket_timeout=3
+            #RedServ.servers["HTTPS"][port].statistics=True
+            RedServ.servers["HTTPS"][port].ssl_module = 'custom-ssl'
+            RedServ.servers["HTTPS"][port].ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
+            RedServ.servers["HTTPS"][port].ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
+            if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
+                conf["HTTPS"]["CA_cert"] = None
+            if not conf["HTTPS"]["CA_cert"]==None:
+                if os.path.exists(os.path.join(current_dir,conf["HTTPS"]["CA_cert"])):
+                    RedServ.servers["HTTPS"][port].ssl_certificate_chain = str(os.path.join(current_dir,conf["HTTPS"]["CA_cert"]))
+            RedServ.servers["HTTPS"][port].subscribe()
     if conf["HTTP"]["enabled"]==True:
-        RedServ.server2 = cherrypy._cpserver.Server()
-        RedServ.server2.socket_port=STDPORT
-        RedServ.server2.socket_host="0.0.0.0"
-        RedServ.server2.thread_pool=conf["HTTPS"]["thread_pool"]
-        RedServ.server2.socket_queue_size=conf["HTTP"]["socket_queue"]
-        RedServ.server2.thread_pool_max=-1
-        RedServ.server2.shutdown_timeout=1
-        RedServ.server2.socket_timeout=3
-        #RedServ.server2.statistics=True
-        RedServ.server2.subscribe()
-    
-    global python_page_cache
-    python_page_cache = {}
+        for port in RedServ.http_ports:
+            RedServ.servers["HTTP"][port] = cherrypy._cpserver.Server()
+            RedServ.servers["HTTP"][port].socket_port=port
+            RedServ.servers["HTTP"][port].socket_host='0.0.0.0'
+            RedServ.servers["HTTP"][port].thread_pool=conf["HTTP"]["thread_pool"]
+            RedServ.servers["HTTP"][port].socket_queue_size=conf["HTTP"]["socket_queue"]
+            RedServ.servers["HTTP"][port].thread_pool_max=-1
+            RedServ.servers["HTTP"][port].shutdown_timeout=1
+            RedServ.servers["HTTP"][port].socket_timeout=3
+            #RedServ.servers["HTTP"][port].statistics=True
+            RedServ.servers["HTTP"][port].subscribe()
     
     sievepath = os.path.join(os.path.abspath('pages'),"sieve.py")
-    global sieve_cache
-    sieve_cache = {}
     sieve_cache["global"] = []
     if os.path.exists(sievepath):
-        sieve_cache["global"].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
         sieve_cache["global"].append(os.path.getmtime(sievepath))
+        sieve_cache["global"].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
     
     port_statuses = "Web server starting up: "
     if conf["HTTP"]["enabled"]==True:
-        port_statuses = port_statuses+"HTTP port: "+str(RedServ.server2.socket_port)+" "
+        port_statuses = port_statuses+"HTTP ports: "
+        for port in RedServ.http_ports:
+            port_statuses = port_statuses+str(port)+", "
+        port_statuses = port_statuses[:-2]+" "
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
-        port_statuses = port_statuses+"HTTPS port: "+str(RedServ.server1.socket_port)
+        port_statuses = port_statuses+"HTTPS ports: "
+        for port in RedServ.https_ports:
+            port_statuses = port_statuses+str(port)+", "
+        port_statuses = port_statuses[:-2]
     RedServ.debugger(3,port_statuses)
     if not os.name=="nt":
         cherrypy.engine.signals.subscribe()
+
+    def find_startup_init_files(directory):
+        for root, dirs, files in os.walk(directory):
+            if not root.endswith("Static"):
+                for basename in files:
+                    if basename=='_redserv_init_script_.py':
+                        filename = os.path.join(root, basename)
+                        yield filename
+
+    def exec_init_script(filename):
+        global site_glo_data
+        global site_shared_data
+        path_list = filename.replace(os.path.join(current_dir,'pages'),"")[1:].split(os.sep)
+        virt_host = '.'.join(reversed(path_list[0:2]))
+        virt_loc = os.path.join(current_dir,'pages',os.sep.join(path_list[:-1]))
+        RedServ.debugger(3,"Running start up script for: "+virt_host)
+        RedServ.debugger(3,"Init script: "+filename.replace(current_dir))
+        if not virt_host in site_glo_data:
+            site_glo_data[virt_host] = {}
+            if conf["database_connections"]==True:
+                db_folders = os.path.join("sites",vhosts(virt_host,conf))
+                site_glo_data[virt_host]["db_conn_loc"] = (virt_host,db_folders)
+        if not virt_host in RedServ.error_pages:
+            RedServ.error_pages[virt_host] = RedServ.default_error_pages
+        local_error_pages = RedServ.error_pages[virt_host]
+        
+        datatoreturn = {
+        "filelocation":filename,
+        "vhost_location":virt_loc,
+        "local_error_pages":local_error_pages,
+        "this_domain":virt_host,
+        "global_site_data":site_shared_data,
+        "site_data":site_glo_data[virt_host]
+        }
+        datatoreturn.update(globals())
+        exec(compile(open(filename,'r').read(),filename,'exec'),datatoreturn)
+        RedServ.error_pages[virt_host] = local_error_pages
+        site_shared_data = datatoreturn['global_site_data']
+        site_glo_data[virt_host] = datatoreturn['site_data']
+        RedServ.noserve(virt_host,filename.replace(virt_loc,"")[1:])
+
+    for filename in find_startup_init_files(os.path.join(current_dir,'pages')):
+        if os.path.isfile(filename):
+            exec_init_script(filename)
+
     cherrypy.engine.start()
     RedServ.debugger(3,"Web server init finished\nYou are free for take off!") # yay!
     cherrypy.engine.block()
 
+if __name__ == '__main__':
+    watchdog_path = os.path.join(current_dir,"pages")
+    page_file_event_handler = PageFileEventHandler()
+    page_event_handler = watchdog_file_event_handler()
+    page_event_handler.on_any_event = page_file_event_handler.on_any_event
+    page_event_handler.on_moved = page_file_event_handler.on_moved
+    page_event_handler.on_created = page_file_event_handler.on_created
+    page_event_handler.on_deleted = page_file_event_handler.on_deleted
+    page_event_handler.on_modified = page_file_event_handler.on_modified
+    page_page_observer = watchdog_observer()
+    page_observer = watchdog_observer()
+    page_observer.schedule(page_event_handler, watchdog_path, recursive=True)
 
-web_init()
+    config_file_event_handler = ConfigFileEventHandler()
+    config_event_handler = watchdog_file_event_handler()
+    config_event_handler.on_any_event = config_file_event_handler.on_any_event
+    config_event_handler.on_moved = config_file_event_handler.on_moved
+    config_event_handler.on_created = config_file_event_handler.on_created
+    config_event_handler.on_deleted = config_file_event_handler.on_deleted
+    config_event_handler.on_modified = config_file_event_handler.on_modified
+    config_observer = watchdog_observer()
+    config_observer.schedule(config_event_handler, current_dir, recursive=False)
+    try:
+        web_init(page_observer,config_observer)
+    except Exception as e:
+        type_, value_, traceback_ = sys.exc_info()
+        trace = traceback.format_exception(type_, value_, traceback_)
+        print(("CRITICAL: "+"\n".join(trace)))
+    finally:
+        page_observer.stop()
+        config_observer.stop()
+    page_observer.join()
+    config_observer.join()
+    exit()
