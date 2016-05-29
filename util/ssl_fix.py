@@ -90,48 +90,143 @@ def fix(ssl_adapters,RedServ):
     )
 
     class BuiltinSsl(BuiltinSSLAdapter):
-      '''Vulnerable, on py2 < 2.7.9, py3 < 3.3:
+        '''Vulnerable, on py2 < 2.7.9, py3 < 3.3:
         * POODLE (SSLv3), adding ``!SSLv3`` to cipher list makes it very incompatible
         * can't disable TLS compression (CRIME)
         * supports Secure Client-Initiated Renegotiation (DOS)
         * no Forward Secrecy
-      Also session caching doesn't work. Some tweaks are posslbe, but don't really
-      change much. For example, it's possible to use ssl.PROTOCOL_TLSv1 instead of
-      ssl.PROTOCOL_SSLv23 with little worse compatiblity.
-      '''
+        Also session caching doesn't work. Some tweaks are posslbe, but don't really
+        change much. For example, it's possible to use ssl.PROTOCOL_TLSv1 instead of
+        ssl.PROTOCOL_SSLv23 with little worse compatiblity.
+        '''
+        def __init__(self, certificate, private_key, certificate_chain=None):
+            super().__init__(certificate, private_key, certificate_chain)
+            self.dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
+            if not os.path.exists(self.dh_key_file_loc):
+                print("INFO: Generating DH key for HTTPS. Please wait.")
+                p = subprocess.call(["openssl","dhparam","-outform","PEM","-out",self.dh_key_file_loc,"2048"], stderr=subprocess.PIPE)
+                print("INFO: HTTPS DH key generated at: "+self.dh_key_file_loc)
+            
+        def bind(self, sock):
+            sock = super().bind(sock)
+            """Wrap and return the given socket."""
+            #print(str(dir(self)))
+            return sock
 
-      def wrap(self, sock):
-        """Wrap and return the given socket, plus WSGI environ entries."""
-        try:
-          s = ssl.wrap_socket(
-            sock,
-            ciphers = ciphers, # the override is for this line
-            do_handshake_on_connect = True,
-            server_side = True,
-            certfile = self.certificate,
-            keyfile = self.private_key,
-            ssl_version = ssl.PROTOCOL_SSLv23
-          )
-        except ssl.SSLError:
-          e = sys.exc_info()[1]
-          if e.errno == ssl.SSL_ERROR_EOF:
-            # This is almost certainly due to the cherrypy engine
-            # 'pinging' the socket to assert it's connectable;
-            # the 'ping' isn't SSL.
-            return None, {}
-          elif e.errno == ssl.SSL_ERROR_SSL:
-            if e.args[1].endswith('http request'):
-              # The client is speaking HTTP to an HTTPS server.
-              raise wsgiserver.NoSSLError
-            elif e.args[1].endswith('unknown protocol'):
-              # The client is speaking some non-HTTP protocol.
-              # Drop the conn.
-              return None, {}
-          raise
+        def wrap(self, sock):
+            """Wrap and return the given socket, plus WSGI environ entries."""
+            #print(dir(self))
 
-        return s, self.get_environ(s)
+            def pick_certificate(sock,hostname_recieved,context):
+                #print(str(dir(context)))
+                #print(str(sock.cipher()))
+                config = RedServ.get_config()
+                key = None
+                cert = None
+                if not hostname_recieved==None:
+                    hostname_recieved = hostname_recieved
+                else:
+                    hostname_recieved = "default"
+
+                def certloader(config_data,hostname):
+                    key = config_data[hostname]['key']
+                    cert = config_data[hostname]['cert']
+                    if 'ca_chain' in config_data[hostname]:
+                        ca_chain = config_data[hostname]['ca_chain']
+                    else:
+                        ca_chain = None
+                    return(key,cert,ca_chain)
+
+                try:
+                    if 'certificates' in config['HTTPS']:
+                        if hostname_recieved in config['HTTPS']['certificates']:
+                            (key,cert,ca_chain) = certloader(config['HTTPS']['certificates'],hostname_recieved)
+                        else:
+                            if 'wildcard-certificates' in config['HTTPS']:
+                                for cert_chain in config['HTTPS']['wildcard-certificates']:
+                                    if cert_chain.startswith("*"):
+                                        if hostname_recieved.endswith(cert_chain[1:]):
+                                            (key,cert,ca_chain) = certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                                    if cert_chain.endswith("*"):
+                                        if hostname_recieved.startswith(cert_chain[:-1]):
+                                            (key,cert,ca_chain) = certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                            else:
+                                (key,cert,ca_chain) = certloader(config['HTTPS']['certificates'],'default')
+                except KeyError:
+                    pass
+                if not (key==None and cert==None):
+                    if not ca_chain==None:
+                        ca_chain = os.path.join(current_dir,ca_chain)
+                    #os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert)
+                    c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+                    c.options |= ssl.OP_NO_SSLv2
+                    c.options |= ssl.OP_NO_SSLv3
+                    c.options |= ssl.OP_NO_COMPRESSION
+                    c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
+                    c.options |= ssl.OP_SINGLE_DH_USE
+                    c.options |= ssl.OP_SINGLE_ECDH_USE
+                    c.load_dh_params(self.dh_key_file_loc)
+                    c.set_ecdh_curve('prime256v1')
+                    c.set_servername_callback(pick_certificate)
+                    c.set_ciphers(':'.join(ciphers)+':@STRENGTH')
+                    if not ca_chain==None:
+                        c.load_verify_locations(capath=ca_chain)
+                    c.load_cert_chain(os.path.join(current_dir,cert),os.path.join(current_dir,key))
+                    sock.context = c
+                    #nc = create_ssl_context(os.path.join(current_dir,'util','tmp_dh_file'),':'.join(ciphers),os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert))
+                    # if connection.total_renegotiations()>3:
+                        # connection.shutdown()
+                        # connection.close()
+                        # RedServ.debugger(3,"Nuked an SSL conn. Too many renegotiations.")
+                    # if not hostname_recieved==None:
+                        # connection.set_tlsext_host_name(hostname_recieved.encode('utf-8'))
+                    # connection.set_context(nc)
+                    return(None)
+            
+            
+            
+            config = RedServ.get_config()
+            c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            c.options |= ssl.OP_NO_SSLv2
+            c.options |= ssl.OP_NO_SSLv3
+            c.options |= ssl.OP_NO_COMPRESSION
+            c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
+            c.options |= ssl.OP_SINGLE_DH_USE
+            c.options |= ssl.OP_SINGLE_ECDH_USE
+            c.load_dh_params(self.dh_key_file_loc)
+            c.set_ecdh_curve('prime256v1')
+            c.set_servername_callback(pick_certificate)
+            c.set_ciphers(':'.join(ciphers)+':@STRENGTH')
+            c.load_verify_locations(capath=os.path.join(current_dir,config["HTTPS"]["CA_cert"]))
+            c.load_cert_chain(config["HTTPS"]["cert"], config["HTTPS"]["cert_private_key"])
+            try:
+                s = c.wrap_socket(sock,do_handshake_on_connect=True,server_side=True)
+            except ssl.SSLError:
+                e = sys.exc_info()[1]
+                if e.errno == ssl.SSL_ERROR_EOF:
+                    # This is almost certainly due to the cherrypy engine
+                    # 'pinging' the socket to assert it's connectable;
+                    # the 'ping' isn't SSL.
+                    return None, {}
+                elif e.errno == ssl.SSL_ERROR_SSL:
+                    if e.args[1].endswith('http request'):
+                        # The client is speaking HTTP to an HTTPS server.
+                        raise wsgiserver.NoSSLError
+                elif e.args[1].endswith('unknown protocol'):
+                    # The client is speaking some non-HTTP protocol.
+                    # Drop the conn.
+                    return None, {}
+                raise
+
+            return s, self.get_environ(s)
 
     ssl_adapters['custom-ssl'] = BuiltinSsl
+
+
+
+
+
+
 
     class Pyopenssl(pyOpenSSLAdapter):
       '''Mostly fine, except:
@@ -140,7 +235,7 @@ def fix(ssl_adapters,RedServ):
         * FS is now enabled. It simply required load_tmp_dh.
       '''
 
-      def get_context(self):
+    def get_context(self):
         """Return an SSL.Context from self attributes."""
         
         def npn_callback(connection):

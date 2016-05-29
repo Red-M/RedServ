@@ -60,6 +60,7 @@ class SSL_fileobject(wsgiserver.SSLAdapter):
     ssl_retry = .01
 
     def _safe_call(self, is_reader, call, *args, **kwargs):
+        print(str(dir(self)))
         """Wrap the given call with SSL error-trapping.
 
         is_reader: if False EOF errors will be raised. If True, EOF errors
@@ -115,6 +116,11 @@ class SSL_fileobject(wsgiserver.SSLAdapter):
 
     def send(self, *args, **kwargs):
         return self._safe_call(False, super(SSL_fileobject, self).send,
+                               *args, **kwargs)
+    
+    def close(self, *args, **kwargs):
+        print(str(dir(super(SSL_fileobject, self))))
+        return self._safe_call(False, super(SSL_fileobject, self).close,
                                *args, **kwargs)
     
     if sys.version_info >= (3, 0):
@@ -261,7 +267,7 @@ class pyOpenSSLAdapter(wsgiserver.SSLAdapter):
 
     def makefile(self, sock, mode='r', bufsize=-1):
         if SSL and isinstance(sock, SSL.ConnectionType):
-            print(str(dir(sock)))
+            #print(str(dir(sock)))
             timeout = sock.gettimeout()
             f = SSL_fileobject(sock, mode, bufsize)
             f.ssl_timeout = timeout
