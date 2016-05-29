@@ -1140,7 +1140,7 @@ class WebInterface:
                 cherrypy.response.status = 404
                 cherrypy.response.headers["content-type"] = "text/plain"
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
-                return("404\n"+RedServ.trace_back(False))
+                return("404\n"+RedServ.trace_back(False).encode('utf8'))
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
@@ -1151,7 +1151,7 @@ class WebInterface:
             cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
             list = sievedata['URI'].split("/")
             if isinstance(sievedata['data'],type(RedServ.staticfileserve(""))):
-                return(sievedata['data'].value)
+                return(sievedata['data'].value.encode('utf8'))
             if isinstance(sievedata['data'],type(cherrypy.HTTPRedirect(""))):
                 (https_redirect_str,cherrypy.response.status) = sievedata['data'].urls,sievedata['data'].status
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
@@ -1182,12 +1182,12 @@ class WebInterface:
             headers = {}
             responsecode = 200
             if not os.path.exists(virtloc) and conf["vhosts-enabled"]==True:
-                return("")
+                return("".encode('utf8'))
             if len(list)>=2 and str(list[0]).lower()=="static":
                 #cherrypy.response.headers['Cache-Control'] = 'private, max-age=120'
                 if str(list[0])=="static":
                     if not os.path.exists(os.path.join(current_dir,os.sep.join(list))):
-                        return(notfound(cherrypy,virt_host,paramlines,list,params))
+                        return(notfound(cherrypy,virt_host,paramlines,list,params).encode('utf8'))
                     if cherrypy.response.status==None:
                         cherrypy.response.status = 200
                     
@@ -1200,7 +1200,7 @@ class WebInterface:
                         cherrypy.response.status = 404
                         cherrypy.response.headers["content-type"] = "text/plain"
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
-                        return("404")
+                        return("404".encode('utf8'))
             cherrypy.response.headers['Cache-Control'] = 'no-cache'
             if os.path.exists(filename):
                 if os.path.isfile(filename):
@@ -1213,14 +1213,14 @@ class WebInterface:
                         cherrypy.response.status = 404
                         cherrypy.response.headers["content-type"] = "text/plain"
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
-                        return(notfound2(cherrypy,e,virtloc,params))
+                        return(notfound2(cherrypy,e,virtloc,params).encode('utf8'))
             else:
                 filename = filepicker(filename,fileext)
                 if not os.path.exists(filename) or filename==None:
                     cherrypy.response.status = 404
                     cherrypy.response.headers["content-type"] = "text/plain"
                     logging("", 1, [cherrypy,virt_host,list,paramlines])
-                    return(notfound2(cherrypy,"File Not Found.",virtloc,params))
+                    return(notfound2(cherrypy,"File Not Found.",virtloc,params).encode('utf8'))
             if not (filename.endswith(".py") or filename.endswith(".php")):
                 if os.path.exists(filename):
                     return(RedServ._serve_static_file(virt_host,list,paramlines,filename))
@@ -1253,7 +1253,7 @@ class WebInterface:
             }
             try:
                 if (filename.endswith(".php")) and (conf["php"]==True):
-                    return(PHP(filename))
+                    return(PHP(filename).encode('utf8'))
                 if filename.endswith(".py"):
                     datatoreturn.update(globals())
                     datatoreturn = exec_page_script(filename,datatoreturn,python_page_cache)
@@ -1282,7 +1282,7 @@ class WebInterface:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
                 logging("", 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.response.headers["content-type"] = "text/plain"
-                return(http_response(datatoreturn,params,virt_host,list,paramlines))
+                return(http_response(datatoreturn,params,virt_host,list,paramlines).encode('utf8'))
             if isinstance(datatoreturn["datareturned"],type(RedServ.staticfileserve(""))):
                 return(datatoreturn["datareturned"].value)
             if isinstance(datatoreturn["datareturned"],type(cherrypy.HTTPRedirect(""))):
@@ -1328,10 +1328,10 @@ class WebInterface:
                 cherrypy.response.headers['Content-Type']="charset=utf-8"
             else:
                 cherrypy.response.headers['Content-Type']=cherrypy.response.headers['Content-Type']+"; charset=utf-8"
-            return(http_response(datatoreturn,params,virt_host,list,paramlines))
+            return(http_response(datatoreturn,params,virt_host,list,paramlines).encode('utf8'))
         else:
             logging("", 1, [cherrypy,virt_host,list,paramlines])
-            return(str(sievedata["data"]))
+            return(str(sievedata["data"]).encode('utf8'))
     ###end
       
     default.exposed = True
