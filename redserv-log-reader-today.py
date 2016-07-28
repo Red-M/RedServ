@@ -77,7 +77,7 @@ def main():
     res_types_sent = {"domain":{},"server":{},"global":{}}
     global_page_hits = 0.0
     
-    
+    find_count = 0
     
     
     for file in os.listdir(current_dir):
@@ -87,10 +87,13 @@ def main():
             f_data = f.read().strip()
             for line in f_data.split("\n"):
                 line_split = line.split("	")
+                # debug_log(file,line)
                 if not line_split[1].startswith("Bad vhost:"):
                     req_time = line_split[0][1:-1]
                     ip = line_split[1]
                     req_type = line_split[2][1:-1].split("(")[0]
+                    if len(req_type)>7:
+                        req_type = req_type[0:4]+"..."+req_type[-4:]
                     response = line_split[2][1:-1].split("(")[1][:-1]
                     if "?" in line_split[3][1:-1]:
                         page = line_split[3][1:-1].split("?")[0]
@@ -106,10 +109,7 @@ def main():
                     server_name = file[6:-4]
                     
                     
-                    
-                    # if response=="None":
-                        # debug_log(file,line)
-                    
+                   
                     
                     
                     

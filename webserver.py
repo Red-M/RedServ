@@ -102,7 +102,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.8.1_beta"
+        self._version_string_ = "1.8.2_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -1422,9 +1422,9 @@ def web_init(page_observer,config_observer):
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         from util import ssl_fix
         if sys.version_info < (3, 0):
-            from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
+            from cherrypy.wsgiserver import ssl_adapters
         else:
-            from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
+            from cherrypy.wsgiserver import ssl_adapters
         ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if not (os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert"])) and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert_private_key"]))):
