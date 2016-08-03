@@ -1425,10 +1425,7 @@ def web_init(page_observer,config_observer):
     RedServ.https_port = SSLPORT
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         from util import ssl_fix
-        if sys.version_info < (3, 0):
-            from cherrypy.wsgiserver.wsgiserver2 import ssl_adapters
-        else:
-            from cherrypy.wsgiserver.wsgiserver3 import ssl_adapters
+        from cherrypy.wsgiserver import ssl_adapters
         ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
     if conf["HTTPS"]["enabled"]==True and SSL_imported==True:
         if not (os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert"])) and os.path.exists(os.path.join(current_dir,conf["HTTPS"]["cert_private_key"]))):
