@@ -245,6 +245,9 @@ def fix(ssl_adapters,RedServ):
             else:
                 ciphers = config["HTTPS"]["ciphers"]
             
+            def alpn_callback(conn, options):
+                return ([b'http/1.1',b'http/1.0'])
+            
             def npn_callback(connection):
                 if connection.total_renegotiations()>3:
                     connection.shutdown()
@@ -252,13 +255,13 @@ def fix(ssl_adapters,RedServ):
                     RedServ.debugger(3,"Nuked an SSL conn. Too many renegotiations.")
                 if not connection.get_servername()==None:
                     connection.set_tlsext_host_name(connection.get_servername().encode('utf-8'))
-                return([b'http/1.0'])
+                return([b'http/1.1',b'http/1.0'])
             
             def create_ssl_context(dhparams,ciphers,privkey,ca_chain,cert):
                 c = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
                 c.set_options(OpenSSL.SSL.OP_NO_COMPRESSION | OpenSSL.SSL.OP_SINGLE_DH_USE | OpenSSL.SSL.OP_CIPHER_SERVER_PREFERENCE | OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
                 c.load_tmp_dh(dhparams)
-                c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('prime256v1'))
+                c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('secp384r1'))
                 if not '@STRENGTH' in ciphers:
                     ciphers = ciphers+':@STRENGTH'
                 c.set_cipher_list(ciphers)
@@ -267,6 +270,7 @@ def fix(ssl_adapters,RedServ):
                     c.load_verify_locations(ca_chain)
                 c.use_certificate_file(cert)
                 c.set_npn_advertise_callback(npn_callback)
+                #c.set_alpn_select_callback(alpn_callback)
                 return(c)
             
             def pick_certificate(connection):
