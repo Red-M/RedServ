@@ -246,7 +246,10 @@ def fix(ssl_adapters,RedServ):
                 ciphers = config["HTTPS"]["ciphers"]
             
             def alpn_callback(conn, options):
-                return ([b'http/1.1',b'http/1.0'])
+                supported_protocols = [b'http/1.1',b'http/1.0']
+                for proto in supported_protocols:
+                    if proto in options:
+                        return(proto)
             
             def npn_callback(connection):
                 if connection.total_renegotiations()>3:
