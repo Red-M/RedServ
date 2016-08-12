@@ -320,8 +320,6 @@ def fix(ssl_adapters,RedServ):
                         connection.shutdown()
                         connection.close()
                         RedServ.debugger(3,"Nuked an SSL conn. Too many renegotiations.")
-                    if not hostname_recieved==None:
-                        connection.set_tlsext_host_name(hostname_recieved.encode('utf-8'))
                     connection.set_context(nc)
             
             dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
