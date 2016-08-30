@@ -102,7 +102,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.8.5_beta"
+        self._version_string_ = "1.9.0_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -895,6 +895,8 @@ def conf_reload(conf):
     new_conf = config(os.path.join(current_dir,"config"))
     config_cache[0] = new_conf
     if not old_time==config_cache[1]:
+        from util import ssl_fix
+        cherrypy.wsgiserver.ssl_adapters = ssl_fix.fix(cherrypy.wsgiserver.ssl_adapters,RedServ)
         new_conf["HTTP"]["enabled"] = old_conf["HTTP"]["enabled"]
         new_conf["HTTPS"]["enabled"] = old_conf["HTTPS"]["enabled"]
         if (not new_conf["HTTP"]["ports"]==old_conf["HTTP"]["ports"]) and False: #disabled for now, has issues wherein the entire web server locks up or new ports don't start.
@@ -1129,7 +1131,7 @@ class WebInterface:
             page = virt_host+"/"+"/".join(list)
             datsieve = ""
             sievedata = {
-            "sievetype":"in",
+            "sievetype":"pre-in",
             "cherrypy": cherrypy,
             "page":page,
             "URL":page,
@@ -1148,7 +1150,7 @@ class WebInterface:
             try:
                 (sievedata,sieve_cache) = sieve(sievedata,sieve_cache) #pre-page render sieve
             except Exception as e:
-                return(error_handler("sieve_input",e,virt_host,list,paramlines,params))
+                return(error_handler("sieve_pre-input",e,virt_host,list,paramlines,params))
             bad = sievedata['bad']
             cherrypy = sievedata['cherrypy']
             filename = sievedata['file_path']
@@ -1240,6 +1242,46 @@ class WebInterface:
                         cherrypy.response.headers["content-type"] = "text/plain"
                         logging("", 1, [cherrypy,virt_host,list,paramlines])
                         raise(cherrypy.HTTPError(status,""))
+            sievedata = {
+            "sievetype":"in",
+            "cherrypy": cherrypy,
+            "page":page,
+            "URL":page,
+            "URI":"/".join(list),
+            "file_path":filename,
+            "this_domain":virt_host,
+            "vhost_location":virtloc,
+            "local_error_pages":local_error_pages,
+            "data": '',
+            "params":params,
+            "global_site_data":site_shared_data,
+            "return_after_this":False,
+            "site_data":site_glo_data[virt_host]
+            }
+            try:
+                (sievedata,sieve_cache) = sieve(sievedata,sieve_cache) #pre-page render sieve
+            except Exception as e:
+                return(error_handler("sieve_input",e,virt_host,list,paramlines,params))
+            cherrypy = sievedata['cherrypy']
+            filename = sievedata['file_path']
+            local_error_pages = sievedata['local_error_pages']
+            site_shared_data = sievedata['global_site_data']
+            site_glo_data[virt_host] = sievedata['site_data']
+            RedServ.error_pages[virt_host] = local_error_pages
+            cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
+            if isinstance(sievedata['data'],type(RedServ.staticfileserve(""))):
+                return(sievedata['data'].value)
+            if isinstance(sievedata['data'],type(cherrypy.HTTPRedirect(""))):
+                (https_redirect_str,cherrypy.response.status) = sievedata['data']
+                logging("", 1, [cherrypy,virt_host,list,paramlines])
+                raise(sievedata['data'])
+            if isinstance(sievedata['data'],type(cherrypy.HTTPError(404))):
+                status,error = sievedata['data']
+                cherrypy.response.status = status
+                cherrypy.response.headers["content-type"] = "text/plain"
+                logging("", 1, [cherrypy,virt_host,list,paramlines])
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
+            
             datatoreturn = {
             "sievetype":"out",
             "params":params,
