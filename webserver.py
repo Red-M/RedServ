@@ -148,6 +148,16 @@ class RedServer(object):
         result = self.error_template % kwargs
         return(result.replace("\n\n\n","\n"))
     
+    def certloader(self,config_data,hostname):
+        # For SSL
+        key = config_data[hostname]['key']
+        cert = config_data[hostname]['cert']
+        if 'ca_chain' in config_data[hostname]:
+            ca_chain = config_data[hostname]['ca_chain']
+        else:
+            ca_chain = None
+        return(key,cert,ca_chain)
+    
     def check_https(self,cherrypy):
         if cherrypy.request.local.port in self.https_ports:
             return(True)
@@ -392,9 +402,9 @@ class PageFileEventHandler(object):
                 except Exception as e:
                     print(RedServ.trace_back(False))
             else:
-                python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                python_page_cache[filename].append(page_time)
                 try:
-                    python_page_cache[filename].append(page_time)
+                    python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
                 except Exception as e:
                     print(RedServ.trace_back(False))
 
@@ -1127,8 +1137,8 @@ class WebInterface:
         
     ###Start
         filename = (virtloc+os.sep.join(list)).strip("..").replace("//","/")
+        page = virt_host+"/"+"/".join(list)
         if os.path.exists(os.path.join(os.path.abspath('pages'),"sieve.py")) or os.path.exists(os.path.join(os.path.abspath(virtloc),"sieve.py")):
-            page = virt_host+"/"+"/".join(list)
             datsieve = ""
             sievedata = {
             "sievetype":"pre-in",
@@ -1452,7 +1462,7 @@ def web_init(page_observer,config_observer):
             RedServ.servers["HTTPS"][port].shutdown_timeout=1
             RedServ.servers["HTTPS"][port].socket_timeout=3
             #RedServ.servers["HTTPS"][port].statistics=True
-            RedServ.servers["HTTPS"][port].ssl_module = 'custom-pyopenssl'
+            RedServ.servers["HTTPS"][port].ssl_module = 'custom-ssl'
             RedServ.servers["HTTPS"][port].ssl_certificate = os.path.join(current_dir,conf["HTTPS"]["cert"])
             RedServ.servers["HTTPS"][port].ssl_private_key = os.path.join(current_dir,conf["HTTPS"]["cert_private_key"])
             if conf["HTTPS"]["CA_cert"]=="default-ca.pem" or conf["HTTPS"]["CA_cert"]=="":
@@ -1529,7 +1539,7 @@ def web_init(page_observer,config_observer):
         "site_data":site_glo_data[virt_host]
         }
         datatoreturn.update(globals())
-        exec(compile(open(filename,'r').read(),filename,'exec'),datatoreturn)
+        exec compile(open(filename,'r').read(),filename,'exec') in datatoreturn
         RedServ.error_pages[virt_host] = local_error_pages
         site_shared_data = datatoreturn['global_site_data']
         site_glo_data[virt_host] = datatoreturn['site_data']
