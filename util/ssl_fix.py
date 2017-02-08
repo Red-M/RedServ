@@ -160,13 +160,21 @@ def fix(ssl_adapters,RedServ):
                     c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
                     c.options |= ssl.OP_SINGLE_DH_USE
                     c.options |= ssl.OP_SINGLE_ECDH_USE
-                    # c.set_servername_callback(pick_certificate)
                     c.load_dh_params(self.dh_key_file_loc)
                     c.set_ecdh_curve('secp384r1')
                     c.set_ciphers(ciphers+':@STRENGTH')
-                    if not ca_chain==None:
-                        c.load_verify_locations(capath=ca_chain)
-                    c.load_cert_chain(os.path.join(current_dir,cert),os.path.join(current_dir,key))
+                    c.set_npn_protocols(['http/1.1','http/1.0'])
+                    if isinstance(cert,type([])):
+                        i = 0
+                        for certs in cert:
+                            if not ca_chain[i]==None:
+                                c.load_verify_locations(capath=ca_chain[i])
+                            c.load_cert_chain(os.path.join(current_dir,cert[i]),os.path.join(current_dir,key[i]))
+                            i+=1
+                    else:
+                        if not ca_chain==None:
+                            c.load_verify_locations(capath=ca_chain)
+                        c.load_cert_chain(os.path.join(current_dir,cert),os.path.join(current_dir,key))
                     sock.context = c
                 return(None)
             
@@ -192,7 +200,17 @@ def fix(ssl_adapters,RedServ):
             # c.set_alpn_protocols(['http/1.1','http/1.0'])
             c.set_npn_protocols(['http/1.1','http/1.0'])
             (key,cert,ca_chain) = RedServ.certloader(config['HTTPS']['certificates'],'default')
-            c.load_cert_chain(os.path.join(current_dir,cert),os.path.join(current_dir,key))
+            if isinstance(cert,type([])):
+                i = 0
+                for certs in cert:
+                    if not ca_chain[i]==None:
+                        c.load_verify_locations(capath=ca_chain[i])
+                    c.load_cert_chain(os.path.join(current_dir,cert[i]),os.path.join(current_dir,key[i]))
+                    i+=1
+            else:
+                if not ca_chain==None:
+                    c.load_verify_locations(capath=ca_chain)
+                c.load_cert_chain(os.path.join(current_dir,cert),os.path.join(current_dir,key))
             try:
                 s = c.wrap_socket(sock,do_handshake_on_connect=True,server_side=True)
             except ssl.SSLError:
