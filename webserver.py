@@ -99,10 +99,11 @@ class RedServer(object):
         self.servers["HTTP"] = {}
         
         self.background_services = {}
+        self.logging = {}
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = "1.9.0_beta"
+        self._version_string_ = "1.9.2_beta"
         self._version_ = "RedServ/"+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -136,6 +137,43 @@ class RedServer(object):
         #self.debugger(3,str(gc.collect()))
         gc.collect()
         gc.collect()
+    
+    def logging_file(self):
+        def init_logging_dict(self,todaylogfile,datelogfile):
+            self.logging = {
+                'today_log':open(todaylogfile,"a"),
+                'date_log':open(datelogfile,"a"),
+                'today':time.strftime("%d")
+            }
+        
+        nodename = self.sysinfo()
+        todaylogfile = os.path.join(current_dir,"logs","today."+nodename+".log")
+        logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"), \
+        time.strftime("%m"))
+        datelogfile = os.path.join(logfolder,time.strftime("%d")+".txt")
+        if not os.path.exists(logfolder):
+            os.makedirs(logfolder)
+        if self.logging=={} or not isinstance(self.logging,type('{}')):
+            # Init logging
+            init_logging_dict(self,todaylogfile,datelogfile)
+        else:
+            if not self.logging['today']==time.strftime("%d"):
+                self.logging['today_log'].close()
+                overwirte_today_log = open(todaylogfile,"w")
+                overwirte_today_log.write('')
+                overwirte_today_log.close()
+                self.logging['date_log'].close()
+                init_logging_dict(self,todaylogfile,datelogfile)
+    
+    def write_log_line(self,line):
+        if not self.logging=={}:
+            try:
+                self.logging['today_log'].write(line)
+                self.logging['date_log'].write(line)
+            except Exception as e:
+                self.debugger(1,'Logging has failed to write to the log files.')
+        else:
+            self.debugger(1,'Logging has failed.')
     
     def test(self,out):
         print(out)
@@ -211,18 +249,16 @@ class RedServer(object):
     
     def debugger(self,lvl=5,message=""):
         message = str(message)
-        if lvl==0:
-            lvl = "FATAL"
-        if lvl==1:
-            lvl = "CRITICAL"
-        if lvl==2:
-            lvl = "ERROR"
-        if lvl==3:
-            lvl = "INFO"
-        if lvl==4:
-            lvl = "MESSAGE"
-        if lvl==5:
-            lvl = "DEBUG"
+        levels = {
+            0:'FATAL',
+            1:'CRITICAL',
+            2:'ERROR',
+            3:'INFO',
+            4:'MESSAGE',
+            5:'DEBUG'
+        }
+        if lvl in levels:
+            lvl = levels[lvl]
         if "\n" in message:
             message = message.replace("\n","\n"+str(lvl)+": ")
         print(str(lvl)+": "+message)
@@ -381,13 +417,17 @@ class PageFileEventHandler(object):
                 if sieve_cache[sievename][0] < sievetime:
                     sieve_cache[sievename][0] = sievetime
                     try:
-                        sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                        sievefile = open(sievepath,'r')
+                        sieve_cache[sievename][1] = compile(sievefile.read(),sievepath,'exec')
+                        sievefile.close()
                     except Exception as e:
                         print(RedServ.trace_back(False))
             else:
                 sieve_cache[sievename].append(sievetime)
                 try:
-                    sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                    sievefile = open(sievepath,'r')
+                    sieve_cache[sievename].append(compile(sievefile.read(),sievepath,'exec'))
+                    sievefile.close()
                 except Exception as e:
                     print(RedServ.trace_back(False))
         else:
@@ -398,13 +438,17 @@ class PageFileEventHandler(object):
             if not python_page_cache[filename]==[]:
                 python_page_cache[filename][0] = page_time
                 try:
-                    python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
+                    page_file = open(filename,'r')
+                    python_page_cache[filename][1] = compile(page_file.read(),filename,'exec')
+                    page_file.close()
                 except Exception as e:
                     print(RedServ.trace_back(False))
             else:
                 python_page_cache[filename].append(page_time)
                 try:
-                    python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                    page_file = open(filename,'r')
+                    python_page_cache[filename].append(compile(page_file.read(),filename,'exec'))
+                    page_file.close()
                 except Exception as e:
                     print(RedServ.trace_back(False))
 
@@ -444,13 +488,17 @@ class PageFileEventHandler(object):
                             if sieve_cache[sievename][0] < sievetime:
                                 sieve_cache[sievename][0] = sievetime
                                 try:
-                                    sieve_cache[sievename][1] = compile(open(sievepath,'r').read(),sievepath,'exec')
+                                    sievefile = open(sievepath,'r')
+                                    sieve_cache[sievename][1] = compile(sievefile.read(),sievepath,'exec')
+                                    sievefile.close()
                                 except Exception as e:
                                     print(RedServ.trace_back(False))
                         else:
                             sieve_cache[sievename].append(sievetime)
                             try:
-                                sieve_cache[sievename].append(compile(open(sievepath,'r').read(),sievepath,'exec'))
+                                sievefile = open(sievepath,'r')
+                                sieve_cache[sievename].append(compile(sievefile.read(),sievepath,'exec'))
+                                sievefile.close()
                             except Exception as e:
                                 print(RedServ.trace_back(False))
                     else:
@@ -461,13 +509,17 @@ class PageFileEventHandler(object):
                         if not python_page_cache[filename]==[]:
                             python_page_cache[filename][0] = page_time
                             try:
-                                python_page_cache[filename][1] = compile(open(filename,'r').read(),filename,'exec')
+                                page_file = open(filename,'r')
+                                python_page_cache[filename][1] = compile(page_file.read(),filename,'exec')
+                                page_file.close()
                             except Exception as e:
                                 print(RedServ.trace_back(False))
                         else:
                             python_page_cache[filename].append(page_time)
                             try:
+                                page_file = open(filename,'r')
                                 python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+                                page_file.close()
                             except Exception as e:
                                 print(RedServ.trace_back(False))
                         del python_page_cache[event.src_path]
@@ -866,19 +918,20 @@ def logging(logline,logtype,*extra):
                 logline = str(time.strftime("[%I:%M:%S %p]	Bad vhost: "+data+ \
                 "	"+virt_host[:-hostlen]+"\n"))
                 
-        nodename = RedServ.sysinfo()
-        todaylog = os.path.join(current_dir,"logs","today."+nodename+".log")
-        logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"), \
-        time.strftime("%m"))
-        logfile = os.path.join(logfolder,time.strftime("%d")+".txt")
-        if not os.path.exists(logfolder):
-            os.makedirs(logfolder)
-        if os.path.exists(logfile):
-            open(logfile,"a").write(logline)
-            open(todaylog,"a").write(logline)
-        if not os.path.exists(logfile):
-            open(logfile,"a").write(logline)
-            open(todaylog,"w").write(logline)
+        # nodename = RedServ.sysinfo()
+        # todaylog = os.path.join(current_dir,"logs","today."+nodename+".log")
+        # logfolder = os.path.join(current_dir,"logs",nodename,time.strftime("%Y"), \
+        # time.strftime("%m"))
+        # logfile = os.path.join(logfolder,time.strftime("%d")+".txt")
+        # if not os.path.exists(logfolder):
+            # os.makedirs(logfolder)
+        # if os.path.exists(logfile):
+            # open(logfile,"a").write(logline)
+            # open(todaylog,"a").write(logline)
+        # if not os.path.exists(logfile):
+            # open(logfile,"a").write(logline)
+            # open(todaylog,"w").write(logline)
+        RedServ.write_log_line(logline)
             
 def conf_update_print(new_conf,old_conf):
     options = {
@@ -912,29 +965,29 @@ def conf_reload(conf):
         if (not new_conf["HTTP"]["ports"]==old_conf["HTTP"]["ports"]) and False: #disabled for now, has issues wherein the entire web server locks up or new ports don't start.
             new_http_ports = ""
             old_http_ports = ""
-            for port in RedServ.servers["HTTP"]:
-                if not port in new_conf["HTTP"]["ports"]:
-                    RedServ.servers["HTTP"][port].stop()
-                    old_http_ports = old_http_ports+str(port)+", "
-            print("Stopped http on ports: "+old_http_ports[:-2])
-            for port in new_conf["HTTP"]["ports"]:
-                if not port in old_conf["HTTP"]["ports"]:
-                    RedServ.servers["HTTP"][port] = cherrypy._cpserver.Server()
-                    RedServ.servers["HTTP"][port].socket_port=port
-                    RedServ.servers["HTTP"][port].socket_host='0.0.0.0'
-                    RedServ.servers["HTTP"][port].thread_pool=new_conf["HTTP"]["thread_pool"]
-                    RedServ.servers["HTTP"][port].socket_queue_size=new_conf["HTTP"]["socket_queue"]
-                    RedServ.servers["HTTP"][port].thread_pool_max=-1
-                    RedServ.servers["HTTP"][port].shutdown_timeout=1
-                    RedServ.servers["HTTP"][port].socket_timeout=3
-                    #RedServ.servers["HTTP"][port].statistics=True
-                    RedServ.servers["HTTP"][port].subscribe()
-                    RedServ.servers["HTTP"][port].start()
-                    new_http_ports = new_http_ports+str(port)+", "
-            STDPORT = conf["HTTP"]["ports"][0]
-            RedServ.http_port = STDPORT
-            RedServ.http_ports = conf["HTTP"]["ports"]
-            print("Started HTTP on: "+new_http_ports[:-2])
+            # for port in RedServ.servers["HTTP"]:
+                # if not port in new_conf["HTTP"]["ports"]:
+                    # RedServ.servers["HTTP"][port].stop()
+                    # old_http_ports = old_http_ports+str(port)+", "
+            # print("Stopped http on ports: "+old_http_ports[:-2])
+            # for port in new_conf["HTTP"]["ports"]:
+                # if not port in old_conf["HTTP"]["ports"]:
+                    # RedServ.servers["HTTP"][port] = cherrypy._cpserver.Server()
+                    # RedServ.servers["HTTP"][port].socket_port=port
+                    # RedServ.servers["HTTP"][port].socket_host='0.0.0.0'
+                    # RedServ.servers["HTTP"][port].thread_pool=new_conf["HTTP"]["thread_pool"]
+                    # RedServ.servers["HTTP"][port].socket_queue_size=new_conf["HTTP"]["socket_queue"]
+                    # RedServ.servers["HTTP"][port].thread_pool_max=-1
+                    # RedServ.servers["HTTP"][port].shutdown_timeout=1
+                    # RedServ.servers["HTTP"][port].socket_timeout=3
+                    # # RedServ.servers["HTTP"][port].statistics=True
+                    # RedServ.servers["HTTP"][port].subscribe()
+                    # RedServ.servers["HTTP"][port].start()
+                    # new_http_ports = new_http_ports+str(port)+", "
+            # STDPORT = conf["HTTP"]["ports"][0]
+            # RedServ.http_port = STDPORT
+            # RedServ.http_ports = conf["HTTP"]["ports"]
+            # print("Started HTTP on: "+new_http_ports[:-2])
         if (not new_conf["HTTPS"]["ports"]==old_conf["HTTPS"]["ports"]) and False:
             new_https_ports = ""
             old_https_ports = ""
@@ -1389,6 +1442,7 @@ def web_init(page_observer,config_observer):
     cherrypy.__version__ = RedServ._version_
     RedServ.debugger(3,"Starting RedServ version: "+RedServ._version_string_)
     RedServ.start_background_service("__internal__RedServ__service__mem_clean_up",30,RedServ.gc_collect)
+    RedServ.start_background_service("__internal__RedServ__service__logging_rotate",1,RedServ.logging_file)
     # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
     conflocation = os.path.join(current_dir,"config")
     config_init(conflocation)
