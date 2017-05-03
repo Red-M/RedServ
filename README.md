@@ -30,14 +30,14 @@ Installing:
 
 2. Install requirements (pip install -r ./requirements.txt)
 
-3. git clone https://github.com/Red-M/RedServ.git
+3. git clone https://bitbucket.org/Red_M/redserv.git
 
 
 Running:
 ========
 1. Run ./webserver.py
 
-2. Configure the settings via ./config
+2. Quit ./webserver.py, configure the settings via ./config
 
 3. Run ./webserver.py
 
