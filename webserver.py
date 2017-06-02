@@ -104,7 +104,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = '1.9.6_beta'
+        self._version_string_ = '1.9.6.1_beta'
         self._version_ = 'RedServ/'+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -332,7 +332,7 @@ class RedServer(object):
                 checkpassword = customcheckpassword(users)
             else:
                 checkpassword = customcheckpassword(users,password_salt)
-        cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm=''+realm+'''
+        cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="'+realm+'"'
         try:
             cherrypy.lib.auth_basic.basic_auth(realm, checkpassword)
         except Exception,e:
