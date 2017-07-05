@@ -24,13 +24,21 @@ import sys
 import os
 import sys
 import subprocess
-from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
+try:
+    from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
+except Exception as e:
+    from cheroot.ssl.builtin import BuiltinSSLAdapter
 if sys.version_info < (3, 0):
-    from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
+    try:
+        from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
+    except Exception as e:
+        from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
 else:
     from util.ssl_pyopenssl import pyOpenSSLAdapter
-
-from cherrypy import wsgiserver
+try:
+    from cherrypy import wsgiserver
+except Exception as e:
+    import cheroot as wsgiserver
 
 os.chdir('.' or sys.path[0])
 current_dir = os.path.join(os.getcwd(),os.sep.join(sys.argv[0].split(os.sep)[0:-1]))
@@ -93,12 +101,10 @@ def fix(ssl_adapters,RedServ):
     class BuiltinSsl(BuiltinSSLAdapter):
         '''Vulnerable, on py2 < 2.7.9, py3 < 3.3:
         * supports Secure Client-Initiated Renegotiation (DOS)
-        * no Forward Secrecy
-        Also session caching doesn't work. Some tweaks are posslbe, but don't really
-        change much. For example, it's possible to use ssl.PROTOCOL_TLSv1 instead of
-        ssl.PROTOCOL_SSLv23 with little worse compatiblity.
+        Also session caching doesn't work (not sure about this). Some tweaks are posslbe, but don't really
+        change much.
         '''
-        def __init__(self, certificate, private_key, certificate_chain=None):
+        def __init__(self, certificate, private_key, certificate_chain=None, ssl_ciphers=None):
             #super().__init__(certificate, private_key, certificate_chain)
             self.dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
             if not os.path.exists(self.dh_key_file_loc):

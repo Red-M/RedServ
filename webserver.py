@@ -1515,7 +1515,10 @@ def web_init(watchdogs):
     RedServ.https_port = SSLPORT
     if conf['HTTPS']['enabled']==True and SSL_imported==True:
         from util import ssl_fix
-        from cherrypy.wsgiserver import ssl_adapters
+        try:
+            from cherrypy.wsgiserver import ssl_adapters
+        except Exception as e:
+            from cheroot.server import ssl_adapters
         ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
         if not (os.path.exists(os.path.join(current_dir,conf['HTTPS']['cert'])) and os.path.exists(os.path.join(current_dir,conf['HTTPS']['cert_private_key']))):
             SSL_cert_gen(RedServ.sysinfo(),os.path.abspath('certs'))
