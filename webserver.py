@@ -104,7 +104,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = '1.9.6.1_beta'
+        self._version_string_ = '1.9.7_beta'
         self._version_ = 'RedServ/'+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -968,13 +968,14 @@ def conf_update_print(new_conf,old_conf):
 def conf_reload(conf):
     global STDPORT
     global SSLPORT
+    global ssl_adapters
     old_conf = config_cache[0]
     old_time = config_cache[1]
     new_conf = config(os.path.join(current_dir,'config.json'))
     config_cache[0] = new_conf
     if not old_time==config_cache[1]:
         from util import ssl_fix
-        cherrypy.wsgiserver.ssl_adapters = ssl_fix.fix(cherrypy.wsgiserver.ssl_adapters,RedServ)
+        ssl_adapters = ssl_fix.fix(ssl_adapters,RedServ)
         new_conf['HTTP']['enabled'] = old_conf['HTTP']['enabled']
         new_conf['HTTPS']['enabled'] = old_conf['HTTPS']['enabled']
         if (not new_conf['HTTP']['ports']==old_conf['HTTP']['ports']) and False: #disabled for now, has issues wherein the entire web server locks up or new ports don't start.
@@ -1449,6 +1450,7 @@ def web_init(watchdogs):
         if not os.path.exists(os.path.abspath(data)):
             os.mkdir(os.path.abspath(data))
     global RedServ
+    global ssl_adapters
     RedServ = RedServer()
     for observer in watchdogs:
         observer.start()
