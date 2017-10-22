@@ -18,7 +18,7 @@
 # This section of code is to correct SSL issues with Cherrypy until they correct them.
 # This section will be removed later.
 # Author of original code: http://recollection.saaj.me/article/cherrypy-questions-testing-ssl-and-docker.html#experiment
-# Potiental suggestion to make this easier to maintain: https://github.com/ran-sama/python3_https_tls1_2_microserver/blob/master/server.py
+# Some suggestions from: https://github.com/ran-sama/python3_https_tls1_2_microserver/blob/master/server.py
 
 import ssl
 import sys
@@ -52,52 +52,45 @@ except ImportError:
   pass
 
 def fix(ssl_adapters,RedServ):
+    __ssl_patch_version__ = '1.0'
+    RedServ.debugger(3,'Loaded RedServ SSL patch version: '+__ssl_patch_version__)
     default_ciphers = (
-    'ECDHE-ECDSA-CHACHA20-POLY1305',
-    'ECDHE-RSA-CHACHA20-POLY1305',
-    'ECDHE-RSA-AES128-GCM-SHA256',
-    'ECDHE-ECDSA-AES128-GCM-SHA256',
-    'ECDHE-RSA-AES256-GCM-SHA384',
-    'ECDHE-RSA-AES128-SHA256',
-    'ECDHE-ECDSA-AES128-SHA256',
-    'ECDHE-RSA-AES128-SHA',
-    'ECDHE-ECDSA-AES128-SHA',
-    'ECDHE-RSA-AES256-SHA384',
-    'ECDHE-RSA-AES256-SHA',
-    'EECDH+AESGCM',
-    'EDH+AESGCM',
-    'AES256+EECDH',
-    'AES256+EDH',
-    'DHE-RSA-AES128-GCM-SHA256',
-    'DHE-DSS-AES128-GCM-SHA256',
-    'kEDH+AESGCM',
-    'ECDH+AESGCM',
-    'DH+AESGCM:ECDH+AES256',
-    'DH+AES256',
-    'ECDH+AES128',
-    'DH+AES',
-    'ECDHE+HIGH',
-    'ECDH+HIGH',
-    'DH+HIGH',
-    'RSA+HIGH',
-    '!aNULL',
-    '!eNULL',
-    '!LOW',
-    '!EXPORT',
-    '!MD5',
-    '!DSS',
-    '!CBC',
-    '!CBC3',
-    '!3DES',
-    '!DES',
-    '!RC4',
-    '!SSLv2',
-    '!PSK',
-    '!aECDH',
-    '!EDH-DSS-DES-CBC3-SHA',
-    '!EDH-RSA-DES-CBC3-SHA',
-    '!KRB5-DES-CBC3-SHA'
+        'HIGH',
+        '!aNULL',
+        '!eNULL',
+        '!LOW',
+        '!EXPORT',
+        '!MD5',
+        '!DSS',
+        '!CBC',
+        '!CBC3',
+        '!3DES',
+        '!DES',
+        '!RC4',
+        '!SSLv2',
+        '!PSK',
+        '!aECDH',
+        '!EDH-DSS-DES-CBC3-SHA',
+        '!EDH-RSA-DES-CBC3-SHA',
+        '!KRB5-DES-CBC3-SHA'
     )
+    
+    ssl_ops = [
+        ssl.OP_NO_SSLv2,
+        ssl.OP_NO_SSLv3,
+        ssl.OP_NO_TLSv1,
+        ssl.OP_NO_TLSv1_1,
+        ssl.OP_NO_COMPRESSION,
+        ssl.OP_CIPHER_SERVER_PREFERENCE,
+        ssl.OP_SINGLE_DH_USE,
+        ssl.OP_SINGLE_ECDH_USE
+    ]
+    
+    config = RedServ.get_config()
+    if not "ciphers" in config["HTTPS"]:
+        ciphers = ':'.join(default_ciphers)
+    else:
+        ciphers = config["HTTPS"]["ciphers"]
 
     class BuiltinSsl(BuiltinSSLAdapter):
         '''Vulnerable, on py2 < 2.7.9, py3 < 3.3:
@@ -160,13 +153,18 @@ def fix(ssl_adapters,RedServ):
                     if not ca_chain==None:
                         ca_chain = os.path.join(current_dir,ca_chain)
                     #os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert)
-                    c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-                    c.options |= ssl.OP_NO_SSLv2
-                    c.options |= ssl.OP_NO_SSLv3
-                    c.options |= ssl.OP_NO_COMPRESSION
-                    c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
-                    c.options |= ssl.OP_SINGLE_DH_USE
-                    c.options |= ssl.OP_SINGLE_ECDH_USE
+                    # c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+                    c = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
+                    for op in ssl_ops:
+                        c.options |= op
+                    # c.options |= ssl.OP_NO_SSLv2
+                    # c.options |= ssl.OP_NO_SSLv3
+                    # c.options |= ssl.OP_NO_TLSv1
+                    # c.options |= ssl.OP_NO_TLSv1_1
+                    # c.options |= ssl.OP_NO_COMPRESSION
+                    # c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
+                    # c.options |= ssl.OP_SINGLE_DH_USE
+                    # c.options |= ssl.OP_SINGLE_ECDH_USE
                     c.load_dh_params(self.dh_key_file_loc)
                     c.set_ecdh_curve('secp384r1')
                     c.set_ciphers(ciphers+':@STRENGTH')
@@ -192,14 +190,19 @@ def fix(ssl_adapters,RedServ):
                 ciphers = ':'.join(default_ciphers)
             else:
                 ciphers = config["HTTPS"]["ciphers"]
-            c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            # c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            c = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
             c.set_servername_callback(pick_certificate)
-            c.options |= ssl.OP_NO_SSLv2
-            c.options |= ssl.OP_NO_SSLv3
-            c.options |= ssl.OP_NO_COMPRESSION
-            c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
-            c.options |= ssl.OP_SINGLE_DH_USE
-            c.options |= ssl.OP_SINGLE_ECDH_USE
+            for op in ssl_ops:
+                c.options |= op
+            # c.options |= ssl.OP_NO_SSLv2
+            # c.options |= ssl.OP_NO_SSLv3
+            # c.options |= ssl.OP_NO_TLSv1
+            # c.options |= ssl.OP_NO_TLSv1_1
+            # c.options |= ssl.OP_NO_COMPRESSION
+            # c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
+            # c.options |= ssl.OP_SINGLE_DH_USE
+            # c.options |= ssl.OP_SINGLE_ECDH_USE
             c.load_dh_params(self.dh_key_file_loc)
             c.set_ecdh_curve('secp384r1')
             c.set_ciphers(ciphers+':@STRENGTH')
