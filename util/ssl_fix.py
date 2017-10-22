@@ -18,6 +18,7 @@
 # This section of code is to correct SSL issues with Cherrypy until they correct them.
 # This section will be removed later.
 # Author of original code: http://recollection.saaj.me/article/cherrypy-questions-testing-ssl-and-docker.html#experiment
+# Potiental suggestion to make this easier to maintain: https://github.com/ran-sama/python3_https_tls1_2_microserver/blob/master/server.py
 
 import ssl
 import sys
