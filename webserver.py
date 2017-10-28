@@ -76,6 +76,26 @@ python_page_cache = {}
 sieve_cache = {}
 config_cache = []
 
+global_page_vars = {
+    'current_dir':current_dir,
+    'cherrypy':cherrypy,
+    'os':os,
+    'sys':sys,
+    'time':time,
+    'datetime':datetime,
+    'json':json,
+    'mimetypes':mimetypes,
+    'socket':socket,
+    'random':random,
+    'sqlite3':sqlite3,
+    'ast':ast,
+    'urllib':urllib,
+    'urllib2':urllib2,
+    're':re,
+    'traceback':traceback,
+    'cgi':cgi
+}
+
 class RedServer(object):
     def __init__(self):
         self.nologging = []
@@ -104,7 +124,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = '1.9.7_beta'
+        self._version_string_ = '1.9.8_beta'
         self._version_ = 'RedServ/'+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -790,7 +810,8 @@ def sieve_exec(sievedata,sievecache,sievepath,sievename):
         else:
             sievecache.append(sievetime)
             sievecache.append(compile(open(sievepath,'r').read(),sievepath,'exec'))
-        sievedata.update(globals())
+        #sievedata.update(globals())
+        sievedata.update(global_page_vars)
         exec(sievecache[1],sievedata)
     return(sievedata,sievecache)
 
@@ -805,6 +826,8 @@ def exec_page_script(filename,datatoreturn,python_page_cache):
     else:
         python_page_cache[filename].append(page_time)
         python_page_cache[filename].append(compile(open(filename,'r').read(),filename,'exec'))
+    # datatoreturn.update(globals())
+    datatoreturn.update(global_page_vars)
     exec(python_page_cache[filename][1],datatoreturn)
     return(datatoreturn)
 
@@ -1213,6 +1236,7 @@ class WebInterface:
             sievedata = {
             'sievetype':'pre-in',
             'cherrypy': cherrypy,
+            'RedServ': RedServ,
             'page':page,
             'URL':page,
             'URI':list,
@@ -1325,6 +1349,7 @@ class WebInterface:
             sievedata = {
             'sievetype':'in',
             'cherrypy': cherrypy,
+            'RedServ': RedServ,
             'page':page,
             'URL':page,
             'URI':list,
@@ -1364,6 +1389,8 @@ class WebInterface:
             
             datatoreturn = {
             'sievetype':'out',
+            'cherrypy': cherrypy,
+            'RedServ': RedServ,
             'params':params,
             'datareturned':"'",
             'headers':headers,
@@ -1385,7 +1412,6 @@ class WebInterface:
                 if (filename.endswith('.php')) and (conf['php']==True):
                     return(PHP(filename))
                 if filename.endswith('.py'):
-                    datatoreturn.update(globals())
                     datatoreturn = exec_page_script(filename,datatoreturn,python_page_cache)
                     local_error_pages = datatoreturn['local_error_pages']
                     RedServ.error_pages[virt_host] = local_error_pages
