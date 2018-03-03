@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # RedServ
-# Copyright (C) 2016  Red_M ( http://bitbucket.com/Red_M )
+# Copyright (C) 2018  Red_M ( http://bitbucket.com/Red_M )
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,9 +19,8 @@
 #Help from Luke Rogers
 
 # TODO:
-#  - py3, py3 also doesn't properly set UTF8 strings for all so we hit issues with hashlib
+#  - Sieve and page caches need to be replaced with a backgroundtask using: cherrypy.process.plugins.BackgroundTask(interval, function, args=[], kwargs={}, bus=None)
 #  - Investigate SSL further and see if we can get an A+ instead of A on SSL labs
-#  - py3 SSL also generates a weird non-blocking error at server start, no idea why.
 #  - Optimize
 import cherrypy
 import os
@@ -37,7 +36,11 @@ import socket
 import random
 import sqlite3
 import ast
-import urllib.request, urllib.parse, urllib.error,urllib.request,urllib.error,urllib.parse
+if sys.version_info < (3, 0):
+    import urllib,urllib2
+if sys.version_info > (3, 0):
+    import urllib
+    import urllib as urllib2
 import re
 import traceback
 import cgi
@@ -45,7 +48,7 @@ import gc
 from watchdog.observers import Observer as watchdog_observer
 from watchdog.events import FileSystemEventHandler as watchdog_file_event_handler
 try:
-    import OpenSSL
+    import ssl
     SSL_imported = True
 except Exception as e:
     print('ERROR: Could not load OpenSSL library. Disabling SSL cert generation.')
@@ -91,6 +94,7 @@ global_page_vars = {
     'sqlite3':sqlite3,
     'ast':ast,
     'urllib':urllib,
+    'urllib2':urllib2,
     're':re,
     'traceback':traceback,
     'cgi':cgi
@@ -231,10 +235,13 @@ class RedServer(object):
         if redirect==True:
             if not cherrypy.request.local.port in self.https_ports:
                 if not params=={}:
-                    url = url+'?'+urllib.parse.urlencode(params)
+                    if sys.version_info < (3, 0):
+                        url = url+'?'+urllib.urlencode(params)
+                    if sys.version_info > (3, 0):
+                        url = url+'?'+urllib.parse.urlencode(params)
                 if not url.startswith('https://'):
                     url = 'https://'+url
-                raise cherrypy
+                raise(cherrypy.HTTPRedirect(url))
             #else:
             #    return('')
         #add reserv based message saying to use https here.
@@ -357,8 +364,10 @@ class RedServer(object):
             cherrypy.lib.auth_basic.basic_auth(realm, checkpassword)
         except Exception as e:
             if type(e)==type(cherrypy.HTTPError(404)):
-                raise(e)
-        return(cherrypy.request.login)
+                status, error = e.code,e.reason
+                raise(cherrypy.HTTPError(status,error))
+        self.loggedinuser = cherrypy.request.login
+        return(self.loggedinuser)
     
     def digest_auth(self, realm, users, key, raw_passwords=False):
         if raw_passwords==False:
@@ -371,7 +380,8 @@ class RedServer(object):
             cherrypy.lib.auth_digest.digest_auth(realm, checkpassword, key)
         except Exception as e:
             if type(e)==type(cherrypy.HTTPError(404)):
-                raise(e)
+                status, error = e
+                raise(cherrypy.HTTPError(status,error))
             if str(e).startswith('n must be a native str (got '):
                 new_users = {}
                 for user in users:
@@ -896,13 +906,13 @@ def notfound(cherrypy,virt_host,paramlines,list,params):
     cherrypy.response.headers['content-type'] = 'text/plain'
     logging('',1,[cherrypy,virt_host,list,paramlines])
     (sysname, nodename, release, version, machine) = os.uname()
-    raise cherrypy
+    raise(cherrypy.HTTPError(404,str(list)+debughandler(params)))
 
 def notfound2(cherrypy,e,virtloc,params):
     cherrypy.response.status = 404
     cherrypy.response.headers['content-type'] = 'text/plain'
     (sysname, nodename, release, version, machine) = os.uname()
-    raise cherrypy
+    raise(cherrypy.HTTPError(404,str(e).replace(virtloc,'/')+debughandler(params)))
 
 def PHP(path):
     proc = subprocess.check_output(['php',path])
@@ -1078,15 +1088,14 @@ def conf_reload(conf):
             'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
             'tools.gzip.on':True,
             'tools.encode.on':True,
+            'tools.encode.encoding': 'utf-8',
+            'tools.encode.text_only': False,
             'tools.decode.on':True,
             'tools.json_in.on': True,
             'tools.json_in.force': False,
             'tools.sessions.on':conf['sessions'],
             'tools.sessions.locking':'explicit',
-            #'tools.sessions.secure':conf['sessions'],
-            'response.timeout': conf['page_request_timeout'],
-            'engine.timeout_monitor.on':True,
-            'engine.timeout_monitor.frequency':conf['page_response_check']
+            'response.timeout': conf['page_request_timeout']
         }}
         if not (os.path.join(current_dir,conf['cherrypy_access_logs'])==current_dir or conf['cherrypy_access_logs']==''):
             global_conf['global']['log.access_file'] = os.path.join(current_dir,conf['cherrypy_access_logs'])
@@ -1121,16 +1130,16 @@ def error_handler(error_source,e,virt_host,list,paramlines,params,datatoreturn={
     cherrypy.response.headers['content-type'] = 'text/plain'
     logging('', 1, [cherrypy,virt_host,list,paramlines])
     if isinstance(e,type(cherrypy.HTTPRedirect(''))):
-        # (https_redirect_str,cherrypy.response.status) = e
+        status,error = e.code,e.reason
+        (https_redirect_str,cherrypy.response.status) = e
         raise(e)
     if isinstance(e,type(cherrypy.HTTPError(404))):
-        cherrypy.response.status = e.code
+        status,error = e.code,e.reason
+        cherrypy.response.status = status
         cherrypy.response.headers['content-type'] = 'text/plain'
         logging('', 1, [cherrypy,virt_host,list,paramlines])
-    if sys.version_info < (3, 0):
-        raise cherrypy
-    else:
-        raise(e)
+        raise(cherrypy.HTTPError(status,str(error)+debug_output))
+    raise(cherrypy.HTTPError(500,RedServ.trace_back(False)+debug_output))
 
 def http_response(datatoreturn,params,virt_host,list,paramlines):
     if isinstance(datatoreturn['datareturned'],type('')):
@@ -1140,7 +1149,7 @@ def http_response(datatoreturn,params,virt_host,list,paramlines):
     if isinstance(datatoreturn['datareturned'],type(cherrypy.HTTPRedirect(''))):
         (https_redirect_str,cherrypy.response.status) = datatoreturn['datareturned']
         logging('', 1, [cherrypy,virt_host,list,paramlines])
-        raise datatoreturn
+        raise(datatoreturn['datareturned'])
     if isinstance(datatoreturn['datareturned'],type(cherrypy.HTTPError(404))):
         status,error = datatoreturn['datareturned']
         cherrypy.response.status = status
@@ -1149,7 +1158,7 @@ def http_response(datatoreturn,params,virt_host,list,paramlines):
         local_error_pages = datatoreturn['local_error_pages']
         RedServ.error_pages[virt_host] = local_error_pages
         cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
-        raise datatoreturn['datareturned']
+        raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
     return(datatoreturn['datareturned'])
 
 class WebInterface:
@@ -1235,6 +1244,7 @@ class WebInterface:
             'sievetype':'pre-in',
             'cherrypy': cherrypy,
             'RedServ': RedServ,
+            'debughandler': debughandler,
             'page':page,
             'URL':page,
             'URI':list,
@@ -1267,19 +1277,19 @@ class WebInterface:
             if isinstance(sievedata['data'],type(cherrypy.HTTPRedirect(''))):
                 (https_redirect_str,cherrypy.response.status) = sievedata['data']
                 logging('', 1, [cherrypy,virt_host,list,paramlines])
-                raise sievedata
+                raise(sievedata['data'])
             if isinstance(sievedata['data'],type(cherrypy.HTTPError(404))):
                 status,error = sievedata['data']
                 cherrypy.response.status = status
                 cherrypy.response.headers['content-type'] = 'text/plain'
                 logging('', 1, [cherrypy,virt_host,list,paramlines])
-                raise sievedata['data']
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
             
             no_serve_message = '404\n'+'/'+'/'.join(list)
             if page in RedServ.noserving:
                 cherrypy.response.headers['content-type'] = 'text/plain'
                 logging('', 1, [cherrypy,virt_host,list,paramlines])
-                raise cherrypy
+                raise(cherrypy.HTTPError(404,no_serve_message))
             #if cherrypy.request.login==None:
             #    if (page in RedServ.basicauth) or (virt_host in RedServ.basicauth):
             #        bad = True
@@ -1343,11 +1353,12 @@ class WebInterface:
                         cherrypy.response.status = 404
                         cherrypy.response.headers['content-type'] = 'text/plain'
                         logging('', 1, [cherrypy,virt_host,list,paramlines])
-                        raise cherrypy
+                        raise(cherrypy.HTTPError(status,''))
             sievedata = {
             'sievetype':'in',
             'cherrypy': cherrypy,
             'RedServ': RedServ,
+            'debughandler': debughandler,
             'page':page,
             'URL':page,
             'URI':list,
@@ -1377,18 +1388,19 @@ class WebInterface:
             if isinstance(sievedata['data'],type(cherrypy.HTTPRedirect(''))):
                 (https_redirect_str,cherrypy.response.status) = sievedata['data']
                 logging('', 1, [cherrypy,virt_host,list,paramlines])
-                raise sievedata
+                raise(sievedata['data'])
             if isinstance(sievedata['data'],type(cherrypy.HTTPError(404))):
                 status,error = sievedata['data']
                 cherrypy.response.status = status
                 cherrypy.response.headers['content-type'] = 'text/plain'
                 logging('', 1, [cherrypy,virt_host,list,paramlines])
-                raise sievedata['data']
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
             
             datatoreturn = {
             'sievetype':'out',
             'cherrypy': cherrypy,
             'RedServ': RedServ,
+            'debughandler': debughandler,
             'params':params,
             'datareturned':"'",
             'headers':headers,
@@ -1421,14 +1433,14 @@ class WebInterface:
             if isinstance(datatoreturn['datareturned'],type(cherrypy.HTTPRedirect(''))):
                 (https_redirect_str,cherrypy.response.status) = datatoreturn['datareturned']
                 logging('', 1, [cherrypy,virt_host,list,paramlines])
-                raise datatoreturn
+                raise(datatoreturn['datareturned'])
             if isinstance(datatoreturn['datareturned'],type(cherrypy.HTTPError(404))):
                 status,error = datatoreturn['datareturned']
                 cherrypy.response.status = status
                 cherrypy.response.headers['content-type'] = 'text/plain'
                 logging('', 1, [cherrypy,virt_host,list,paramlines])
                 cherrypy.serving.request.error_page = RedServ.error_pages[virt_host]
-                raise datatoreturn['datareturned']
+                raise(cherrypy.HTTPError(status,str(error)+str(debughandler(params))))
             try:
                 (datatoreturn,sieve_cache) = sieve(datatoreturn,sieve_cache)
             except Exception as e:
@@ -1502,32 +1514,24 @@ def web_init(watchdogs):
     if not os.path.exists(site_logfolder):
         os.makedirs(site_logfolder)
     global_conf = {
-        'global': { 
-            'engine.autoreload.on': False,
-            'environment': 'embedded',
-            'log.error_file': site_logfile,
-            'log.screen': conf['logs_to_screen'],
-            'gzipfilter.on':True,
-            'tools.caching.on':False,
-            'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
-            'tools.gzip.on':True,
-            'tools.encode.on':True,
-            'tools.encode.encoding': 'utf-8',
-            'tools.encode.text_only': False,
-            'tools.decode.on':True,
-            'tools.decode.encoding': 'utf-8',
-            'tools.etags.on': True,
-            'tools.etags.autotags': True,
-            'tools.json_in.on': True,
-            'tools.json_in.force': False,
-            'tools.sessions.on':conf['sessions'],
-            'tools.sessions.locking':'explicit',
-            #'tools.sessions.secure':conf['sessions'],
-            'response.timeout': conf['page_request_timeout'],
-            'engine.timeout_monitor.on':True,
-            'engine.timeout_monitor.frequency':conf['page_response_check']
-        }
-    }
+        'global': { 'engine.autoreload.on': False,
+        'environment': 'embedded',
+        'log.error_file': site_logfile,
+        'log.screen': conf['logs_to_screen'],
+        'gzipfilter.on':True,
+        'tools.caching.on':False,
+        'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
+        'tools.gzip.on':True,
+        'tools.encode.on':True,
+        'tools.encode.encoding': 'utf-8',
+        'tools.encode.text_only': False,
+        'tools.decode.on':True,
+        'tools.json_in.on': True,
+        'tools.json_in.force': False,
+        'tools.sessions.on':conf['sessions'],
+        'tools.sessions.locking':'explicit',
+        'response.timeout': conf['page_request_timeout']
+    }}
     if not (os.path.join(current_dir,conf['cherrypy_access_logs'])==current_dir or conf['cherrypy_access_logs']==''):
         global_conf['global']['log.access_file'] = os.path.join(current_dir,conf['cherrypy_access_logs'])
     cherrypy.config.update(global_conf)

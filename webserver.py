@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 # RedServ
-# Copyright (C) 2016  Red_M ( http://bitbucket.com/Red_M )
+# Copyright (C) 2018  Red_M ( http://bitbucket.com/Red_M )
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,7 +36,11 @@ import socket
 import random
 import sqlite3
 import ast
-import urllib,urllib2
+if sys.version_info < (3, 0):
+    import urllib,urllib2
+if sys.version_info > (3, 0):
+    import urllib
+    import urllib as urllib2
 import re
 import traceback
 import cgi
@@ -44,15 +48,15 @@ import gc
 from watchdog.observers import Observer as watchdog_observer
 from watchdog.events import FileSystemEventHandler as watchdog_file_event_handler
 try:
-    import OpenSSL
+    import ssl
     SSL_imported = True
-except Exception,e:
+except Exception as e:
     print('ERROR: Could not load OpenSSL library. Disabling SSL cert generation.')
     SSL_imported = False
 try:
     import requests
     requests.cookie_session = requests.Session()
-except Exception,e:
+except Exception as e:
     print('ERROR: Could not load requests library.')
 
 
@@ -231,7 +235,10 @@ class RedServer(object):
         if redirect==True:
             if not cherrypy.request.local.port in self.https_ports:
                 if not params=={}:
-                    url = url+'?'+urllib.urlencode(params)
+                    if sys.version_info < (3, 0):
+                        url = url+'?'+urllib.urlencode(params)
+                    if sys.version_info > (3, 0):
+                        url = url+'?'+urllib.parse.urlencode(params)
                 if not url.startswith('https://'):
                     url = 'https://'+url
                 raise(cherrypy.HTTPRedirect(url))
@@ -271,7 +278,7 @@ class RedServer(object):
             response = sock.recv(message_size)
             sock.close()
             return(response)
-        except Expection,e:
+        except Expection as e:
             return(e)
     
     def debugger(self,lvl=5,message=''):
@@ -355,9 +362,9 @@ class RedServer(object):
         cherrypy.response.headers['WWW-Authenticate'] = 'Basic realm="'+realm+'"'
         try:
             cherrypy.lib.auth_basic.basic_auth(realm, checkpassword)
-        except Exception,e:
+        except Exception as e:
             if type(e)==type(cherrypy.HTTPError(404)):
-                status, error = e
+                status, error = e.code,e.reason
                 raise(cherrypy.HTTPError(status,error))
         self.loggedinuser = cherrypy.request.login
         return(self.loggedinuser)
@@ -371,7 +378,7 @@ class RedServer(object):
             if not 'WWW-Authenticate' in cherrypy.response.headers:
                 cherrypy.response.headers['WWW-Authenticate'] = cherrypy.lib.auth_digest.www_authenticate(realm, key)
             cherrypy.lib.auth_digest.digest_auth(realm, checkpassword, key)
-        except Exception,e:
+        except Exception as e:
             if type(e)==type(cherrypy.HTTPError(404)):
                 status, error = e
                 raise(cherrypy.HTTPError(status,error))
@@ -690,7 +697,7 @@ def config(config_location):
             config_cache[0] = json.load(open(config_location))
             config_cache[1] = os.path.getmtime(config_location)
         return(config_cache[0])
-    except ValueError, e:
+    except ValueError as e:
         RedServ.debugger(0,'malformed config! '+e)
 
 def TCP_client(ip, port, message):
@@ -1081,15 +1088,14 @@ def conf_reload(conf):
             'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
             'tools.gzip.on':True,
             'tools.encode.on':True,
+            'tools.encode.encoding': 'utf-8',
+            'tools.encode.text_only': False,
             'tools.decode.on':True,
             'tools.json_in.on': True,
             'tools.json_in.force': False,
             'tools.sessions.on':conf['sessions'],
             'tools.sessions.locking':'explicit',
-            #'tools.sessions.secure':conf['sessions'],
-            'response.timeout': conf['page_request_timeout'],
-            'engine.timeout_monitor.on':True,
-            'engine.timeout_monitor.frequency':conf['page_response_check']
+            'response.timeout': conf['page_request_timeout']
         }}
         if not (os.path.join(current_dir,conf['cherrypy_access_logs'])==current_dir or conf['cherrypy_access_logs']==''):
             global_conf['global']['log.access_file'] = os.path.join(current_dir,conf['cherrypy_access_logs'])
@@ -1124,10 +1130,11 @@ def error_handler(error_source,e,virt_host,list,paramlines,params,datatoreturn={
     cherrypy.response.headers['content-type'] = 'text/plain'
     logging('', 1, [cherrypy,virt_host,list,paramlines])
     if isinstance(e,type(cherrypy.HTTPRedirect(''))):
+        status,error = e.code,e.reason
         (https_redirect_str,cherrypy.response.status) = e
         raise(e)
     if isinstance(e,type(cherrypy.HTTPError(404))):
-        status,error = e
+        status,error = e.code,e.reason
         cherrypy.response.status = status
         cherrypy.response.headers['content-type'] = 'text/plain'
         logging('', 1, [cherrypy,virt_host,list,paramlines])
@@ -1516,15 +1523,14 @@ def web_init(watchdogs):
         'tools.gzip.mime_types':['text/html', 'text/plain', 'text/css', 'text/*'],
         'tools.gzip.on':True,
         'tools.encode.on':True,
+        'tools.encode.encoding': 'utf-8',
+        'tools.encode.text_only': False,
         'tools.decode.on':True,
         'tools.json_in.on': True,
         'tools.json_in.force': False,
         'tools.sessions.on':conf['sessions'],
         'tools.sessions.locking':'explicit',
-        #'tools.sessions.secure':conf['sessions'],
-        'response.timeout': conf['page_request_timeout'],
-        'engine.timeout_monitor.on':True,
-        'engine.timeout_monitor.frequency':conf['page_response_check']
+        'response.timeout': conf['page_request_timeout']
     }}
     if not (os.path.join(current_dir,conf['cherrypy_access_logs'])==current_dir or conf['cherrypy_access_logs']==''):
         global_conf['global']['log.access_file'] = os.path.join(current_dir,conf['cherrypy_access_logs'])
@@ -1644,7 +1650,7 @@ def web_init(watchdogs):
         'site_data':site_glo_data[virt_host]
         }
         datatoreturn.update(globals())
-        exec compile(open(filename,'r').read(),filename,'exec') in datatoreturn
+        exec(compile(open(filename,'r').read(),filename,'exec'), datatoreturn)
         RedServ.error_pages[virt_host] = local_error_pages
         site_shared_data = datatoreturn['global_site_data']
         site_glo_data[virt_host] = datatoreturn['site_data']
