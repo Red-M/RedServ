@@ -128,7 +128,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = '1.9.8_beta'
+        self._version_string_ = '1.9.9_beta'
         self._version_ = 'RedServ/'+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -1130,8 +1130,7 @@ def error_handler(error_source,e,virt_host,list,paramlines,params,datatoreturn={
     cherrypy.response.headers['content-type'] = 'text/plain'
     logging('', 1, [cherrypy,virt_host,list,paramlines])
     if isinstance(e,type(cherrypy.HTTPRedirect(''))):
-        status,error = e.code,e.reason
-        (https_redirect_str,cherrypy.response.status) = e
+        cherrypy.response.status = e.status
         raise(e)
     if isinstance(e,type(cherrypy.HTTPError(404))):
         status,error = e.code,e.reason
