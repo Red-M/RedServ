@@ -128,7 +128,7 @@ class RedServer(object):
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = '1.9.9_beta'
+        self._version_string_ = '1.9.9.1_beta'
         self._version_ = 'RedServ/'+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -223,7 +223,11 @@ class RedServer(object):
             ca_chain = config_data[hostname]['ca_chain']
         else:
             ca_chain = None
-        return(key,cert,ca_chain)
+        if 'ciphers' in config_data[hostname]:
+            ciphers = config_data[hostname]['ciphers']
+        else:
+            ciphers = None
+        return(key,cert,ca_chain,ciphers)
     
     def check_https(self,cherrypy):
         if cherrypy.request.local.port in self.https_ports:
@@ -1572,7 +1576,7 @@ def web_init(watchdogs):
             RedServ.servers['HTTPS'][port].shutdown_timeout=1
             RedServ.servers['HTTPS'][port].socket_timeout=3
             #RedServ.servers['HTTPS'][port].statistics=True
-            RedServ.servers['HTTPS'][port].ssl_module = 'custom-ssl'
+            RedServ.servers['HTTPS'][port].ssl_module = 'custom-pyopenssl'
             RedServ.servers['HTTPS'][port].ssl_certificate = os.path.join(current_dir,conf['HTTPS']['cert'])
             RedServ.servers['HTTPS'][port].ssl_private_key = os.path.join(current_dir,conf['HTTPS']['cert_private_key'])
             if conf['HTTPS']['CA_cert']=='default-ca.pem' or conf['HTTPS']['CA_cert']=='':
