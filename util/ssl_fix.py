@@ -52,27 +52,11 @@ except ImportError:
   pass
 
 def fix(ssl_adapters,RedServ):
-    __ssl_patch_version__ = '1.2'
+    __ssl_patch_version__ = '1.2.1'
     RedServ.debugger(3,'Loaded RedServ SSL patch version: '+__ssl_patch_version__)
     default_ciphers = (
-        'HIGH',
-        '!aNULL',
-        '!eNULL',
-        '!LOW',
-        '!EXPORT',
-        '!MD5',
-        '!DSS',
-        '!CBC',
-        '!CBC3',
-        '!3DES',
-        '!DES',
-        '!RC4',
-        '!SSLv2',
-        '!PSK',
-        '!aECDH',
-        '!EDH-DSS-DES-CBC3-SHA',
-        '!EDH-RSA-DES-CBC3-SHA',
-        '!KRB5-DES-CBC3-SHA'
+        'ECDHE-ECDSA-AES256-GCM-SHA384',
+        'ECDHE-ECDSA-CHACHA20-POLY1305'
     )
     
     builtin_ssl_ops = [
@@ -291,6 +275,7 @@ def fix(ssl_adapters,RedServ):
                     return([b'http/1.1',b'http/1.0'])
                 
                 def create_ssl_context(dhparams,ciphers,privkey,ca_chain,cert):
+                    config = RedServ.get_config()
                     c = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
                     options = 0
                     for sel_option in pyopenssl_ssl_ops:
