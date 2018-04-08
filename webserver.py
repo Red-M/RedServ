@@ -19,7 +19,7 @@
 #Help from Luke Rogers
 
 # TODO:
-#  - Sieve and page caches need to be replaced with a backgroundtask using: cherrypy.process.plugins.BackgroundTask(interval, function, args=[], kwargs={}, bus=None)
+#  - Logging needs to be replaced with a backgroundtask using: cherrypy.process.plugins.BackgroundTask(interval, function, args=[], kwargs={}, bus=None)
 #  - Investigate SSL further and see if we can get an A+ instead of A on SSL labs
 #  - Optimize
 import cherrypy
@@ -31,6 +31,7 @@ if sys.version_info < (3, 0):
 import time
 import datetime
 import json
+import multiprocessing
 import mimetypes
 import socket
 import random
@@ -125,10 +126,11 @@ class RedServer(object):
         
         self.background_services = {}
         self.logging = {}
+        self.logging_queue = multiprocessing.Queue()
         
         #self.server1 = cherrypy._cpserver.Server()
         #self.server2 = cherrypy._cpserver.Server()
-        self._version_string_ = '1.9.9.1_beta'
+        self._version_string_ = '1.9.9.2_beta'
         self._version_ = 'RedServ/'+str(self._version_string_)
         self.http_port = 8080
         self.http_ports = []
@@ -194,15 +196,20 @@ class RedServer(object):
                 os.remove(todaylogfile)
             self.logging = init_logging_dict(self,todaylogfile,datelogfile)
     
+    def logging_write(self):
+        while self.logging_queue.qsize()!=0:
+            line = self.logging_queue.get()
+            if not self.logging=={}:
+                try:
+                    self.logging['today_log'].write(line)
+                    self.logging['date_log'].write(line)
+                except Exception as e:
+                    self.debugger(1,'Logging has failed to write to the log files.')
+            else:
+                self.debugger(1,'Logging has failed to init.')
+    
     def write_log_line(self,line):
-        if not self.logging=={}:
-            try:
-                self.logging['today_log'].write(line)
-                self.logging['date_log'].write(line)
-            except Exception as e:
-                self.debugger(1,'Logging has failed to write to the log files.')
-        else:
-            self.debugger(1,'Logging has failed to init.')
+        self.logging_queue.put(line)
     
     def test(self,out):
         print(out)
@@ -1501,6 +1508,7 @@ def web_init(watchdogs):
     RedServ.logging_file()
     RedServ.start_background_service('__internal__RedServ__service__mem_clean_up',30,RedServ.gc_collect)
     RedServ.start_background_service('__internal__RedServ__service__logging_rotate',1,RedServ.logging_file)
+    RedServ.start_background_service('__internal__RedServ__service__logging_write',1,RedServ.logging_write)
     # Config init and caching, We need this for enabling the SSL changes inside of Cherrypy if SSL is enabled.
     conflocation = os.path.join(current_dir,'config.json')
     config_init(conflocation)
