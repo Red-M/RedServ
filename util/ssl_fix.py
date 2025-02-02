@@ -1,5 +1,5 @@
 # RedServ
-# Copyright (C) 2016  Red_M ( http://bitbucket.com/Red_M )
+# Copyright (C) 2019  Red_M ( http://bitbucket.com/Red_M )
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,17 +25,10 @@ import sys
 import os
 import sys
 import subprocess
-try:
-    from cherrypy.wsgiserver.ssl_builtin import BuiltinSSLAdapter
-except Exception as e:
-    from cheroot.ssl.builtin import BuiltinSSLAdapter
-if sys.version_info < (3, 0):
-    try:
-        from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
-    except Exception as e:
-        from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
-# else:
-    # from util.ssl_pyopenssl import pyOpenSSLAdapter
+
+from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
+from cheroot.ssl.builtin import BuiltinSSLAdapter
+
 try:
     from cherrypy import wsgiserver
 except Exception as e:
@@ -52,24 +45,24 @@ except ImportError:
   pass
 
 def fix(ssl_adapters,RedServ):
-    __ssl_patch_version__ = '1.2.1'
+    __ssl_patch_version__ = '1.2.2'
     RedServ.debugger(3,'Loaded RedServ SSL patch version: '+__ssl_patch_version__)
     default_ciphers = (
         'ECDHE-ECDSA-AES256-GCM-SHA384',
         'ECDHE-ECDSA-CHACHA20-POLY1305'
     )
-    
+
     builtin_ssl_ops = [
         ssl.OP_NO_SSLv2,
         ssl.OP_NO_SSLv3,
         ssl.OP_NO_TLSv1,
         ssl.OP_NO_TLSv1_1,
         ssl.OP_NO_COMPRESSION,
-        ssl.OP_CIPHER_SERVER_PREFERENCE,
         ssl.OP_SINGLE_DH_USE,
-        ssl.OP_SINGLE_ECDH_USE
+        ssl.OP_SINGLE_ECDH_USE,
+        ssl.OP_CIPHER_SERVER_PREFERENCE
     ]
-    
+
     pyopenssl_ssl_ops = [
         OpenSSL.SSL.OP_NO_COMPRESSION,
         OpenSSL.SSL.OP_SINGLE_DH_USE,
@@ -80,7 +73,7 @@ def fix(ssl_adapters,RedServ):
         OpenSSL.SSL.OP_NO_TLSv1,
         OpenSSL.SSL.OP_NO_TLSv1_1
     ]
-    
+
     config = RedServ.get_config()
     if not "ciphers" in config["HTTPS"]:
         ciphers = ':'.join(default_ciphers)
@@ -94,17 +87,16 @@ def fix(ssl_adapters,RedServ):
         change much.
         '''
         def __init__(self, certificate, private_key, certificate_chain=None, ssl_ciphers=None):
-            #super().__init__(certificate, private_key, certificate_chain)
+            super().__init__(certificate, private_key, certificate_chain)
             self.dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
             if not os.path.exists(self.dh_key_file_loc):
                 print("INFO: Generating DH key for HTTPS. Please wait.")
                 p = subprocess.call(["openssl","dhparam","-outform","PEM","-out",self.dh_key_file_loc,"2048"], stderr=subprocess.PIPE)
                 print("INFO: HTTPS DH key generated at: "+self.dh_key_file_loc)
-            
+
         # def bind(self, sock):
-            #sock = super().bind(sock)
-            """Wrap and return the given socket."""
-            #print(str(dir(self)))
+            # sock = super().bind(sock)
+            # """Wrap and return the given socket."""
             # return sock
 
         def wrap(self, sock):
@@ -115,33 +107,33 @@ def fix(ssl_adapters,RedServ):
                 #print(str(sock.cipher()))
                 config = RedServ.get_config()
                 if not "ciphers" in config["HTTPS"]:
-                    ciphers = ':'.join(default_ciphers)
+                    generic_ciphers = ':'.join(default_ciphers)
                 else:
-                    ciphers = config["HTTPS"]["ciphers"]
+                    generic_ciphers = config["HTTPS"]["ciphers"]
                 key = None
                 cert = None
                 if not hostname_recieved==None:
                     hostname_recieved = hostname_recieved
                 else:
                     hostname_recieved = "default"
-                
+
                 # print(hostname_recieved)
 
                 try:
                     if 'certificates' in config['HTTPS']:
                         if hostname_recieved in config['HTTPS']['certificates']:
-                            (key,cert,ca_chain) = RedServ.certloader(config['HTTPS']['certificates'],hostname_recieved)
+                            (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],hostname_recieved)
                         else:
                             if 'wildcard-certificates' in config['HTTPS']:
                                 for cert_chain in config['HTTPS']['wildcard-certificates']:
                                     if cert_chain.startswith("*"):
                                         if hostname_recieved.endswith(cert_chain[1:]):
-                                            (key,cert,ca_chain) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                                            (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
                                     if cert_chain.endswith("*"):
                                         if hostname_recieved.startswith(cert_chain[:-1]):
-                                            (key,cert,ca_chain) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                                            (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
                             else:
-                                (key,cert,ca_chain) = RedServ.certloader(config['HTTPS']['certificates'],'default')
+                                (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],'default')
                 except KeyError:
                     pass
                 if not (key==None and cert==None):
@@ -150,20 +142,14 @@ def fix(ssl_adapters,RedServ):
                     #os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert)
                     # c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
                     c = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
-                    for op in ssl_ops:
+                    for op in builtin_ssl_ops:
                         c.options |= op
-                    # c.options |= ssl.OP_NO_SSLv2
-                    # c.options |= ssl.OP_NO_SSLv3
-                    # c.options |= ssl.OP_NO_TLSv1
-                    # c.options |= ssl.OP_NO_TLSv1_1
-                    # c.options |= ssl.OP_NO_COMPRESSION
-                    # c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
-                    # c.options |= ssl.OP_SINGLE_DH_USE
-                    # c.options |= ssl.OP_SINGLE_ECDH_USE
                     c.load_dh_params(self.dh_key_file_loc)
                     c.set_ecdh_curve('secp384r1')
+                    if ciphers==None:
+                        ciphers = generic_ciphers
                     c.set_ciphers(ciphers+':@STRENGTH')
-                    c.set_npn_protocols(['http/1.1','http/1.0'])
+                    #c.set_npn_protocols(['http/1.1','http/1.0'])
                     if isinstance(cert,type([])):
                         i = 0
                         for certs in cert:
@@ -177,34 +163,28 @@ def fix(ssl_adapters,RedServ):
                         c.load_cert_chain(os.path.join(current_dir,cert),os.path.join(current_dir,key))
                     sock.context = c
                 return(None)
-            
-            
-            
+
+
+
             config = RedServ.get_config()
             if not "ciphers" in config["HTTPS"]:
-                ciphers = ':'.join(default_ciphers)
+                generic_ciphers = ':'.join(default_ciphers)
             else:
-                ciphers = config["HTTPS"]["ciphers"]
+                generic_ciphers = config["HTTPS"]["ciphers"]
             # c = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
             c = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
             c.set_servername_callback(pick_certificate)
-            for op in ssl_ops:
+            for op in builtin_ssl_ops:
                 c.options |= op
-            # c.options |= ssl.OP_NO_SSLv2
-            # c.options |= ssl.OP_NO_SSLv3
-            # c.options |= ssl.OP_NO_TLSv1
-            # c.options |= ssl.OP_NO_TLSv1_1
-            # c.options |= ssl.OP_NO_COMPRESSION
-            # c.options |= ssl.OP_CIPHER_SERVER_PREFERENCE
-            # c.options |= ssl.OP_SINGLE_DH_USE
-            # c.options |= ssl.OP_SINGLE_ECDH_USE
             c.load_dh_params(self.dh_key_file_loc)
             c.set_ecdh_curve('secp384r1')
+            (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],'default')
+            if ciphers==None:
+                ciphers = generic_ciphers
             c.set_ciphers(ciphers+':@STRENGTH')
             c.load_verify_locations(capath=os.path.join(current_dir,config["HTTPS"]["CA_cert"]))
             # c.set_alpn_protocols(['http/1.1','http/1.0'])
-            c.set_npn_protocols(['http/1.1','http/1.0'])
-            (key,cert,ca_chain) = RedServ.certloader(config['HTTPS']['certificates'],'default')
+            # c.set_npn_protocols(['http/1.1','http/1.0']) # needs newer SSL
             if isinstance(cert,type([])):
                 i = 0
                 for certs in cert:
@@ -245,114 +225,115 @@ def fix(ssl_adapters,RedServ):
 
 
 
-    if sys.version_info < (3, 0):
-        class Pyopenssl(pyOpenSSLAdapter):
-            '''Mostly fine, except:
-                * Secure Client-Initiated Renegotiation
-                * no Forward Secrecy, SSL.OP_SINGLE_DH_USE could have helped but it didn't
-                * FS is now enabled. It simply required load_tmp_dh.
-            '''
+    # if sys.version_info < (3, 0):
+    class Pyopenssl(pyOpenSSLAdapter):
+        '''Mostly fine, except:
+            * Secure Client-Initiated Renegotiation
+            * no Forward Secrecy, SSL.OP_SINGLE_DH_USE could have helped but it didn't
+            * FS is now enabled. It simply required load_tmp_dh.
+        '''
 
-            def get_context(self):
-                """Return an SSL.Context from self attributes."""
-                
+        def get_context(self):
+            """Return an SSL.Context from self attributes."""
+
+            config = RedServ.get_config()
+            ciphers = None
+
+            def alpn_callback(conn, options):
+                supported_protocols = [b'http/1.1',b'http/1.0']
+                for proto in supported_protocols:
+                    if proto in options:
+                        return(proto)
+
+            def npn_callback(connection):
+                if connection.total_renegotiations()>3:
+                    connection.shutdown()
+                    connection.close()
+                    RedServ.debugger(3,"Nuked an SSL conn. Too many renegotiations.")
+                if not connection.get_servername()==None:
+                    connection.set_tlsext_host_name(connection.get_servername())
+                return([b'http/1.1',b'http/1.0'])
+
+            def create_ssl_context(dhparams,ciphers,privkey,ca_chain,cert):
                 config = RedServ.get_config()
+                c = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
+                options = 0
+                for sel_option in pyopenssl_ssl_ops:
+                    options = options | sel_option
+                c.set_options(options)
+                c.load_tmp_dh(dhparams)
+                c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('secp384r1'))
+                if ciphers==None:
+                    if "ciphers" in config["HTTPS"]:
+                        ciphers = config["HTTPS"]["ciphers"]
+                    else:
+                        ciphers = ':'.join(default_ciphers)
+                if not '@STRENGTH' in ciphers:
+                    ciphers = ciphers+':@STRENGTH'
+                c.set_cipher_list(ciphers)
+                c.use_privatekey_file(privkey)
+                if not ca_chain==None:
+                    c.load_verify_locations(ca_chain)
+                c.use_certificate_file(cert)
+                #c.set_npn_advertise_callback(npn_callback)
+                #c.set_alpn_select_callback(alpn_callback)
+                return(c)
+
+            def pick_certificate(connection):
+                config = RedServ.get_config()
+                key = None
+                cert = None
                 ciphers = None
-                
-                def alpn_callback(conn, options):
-                    supported_protocols = [b'http/1.1',b'http/1.0']
-                    for proto in supported_protocols:
-                        if proto in options:
-                            return(proto)
-                
-                def npn_callback(connection):
+                if not connection.get_servername()==None:
+                    hostname_recieved = connection.get_servername()
+                else:
+                    hostname_recieved = "default"
+
+                try:
+                    if 'certificates' in config['HTTPS']:
+                        if hostname_recieved in config['HTTPS']['certificates']:
+                            (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],hostname_recieved)
+                        else:
+                            if 'wildcard-certificates' in config['HTTPS']:
+                                for cert_chain in config['HTTPS']['wildcard-certificates']:
+                                    cert_chain = cert_chain.encode('utf8')
+                                    if cert_chain.startswith(b'*'):
+                                        if hostname_recieved.endswith(cert_chain[1:]):
+                                            (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                                    if cert_chain.endswith(b'*'):
+                                        if hostname_recieved.startswith(cert_chain[:-1]):
+                                            (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
+                            else:
+                                (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],'default')
+                except KeyError:
+                    pass
+                if not (key==None and cert==None):
+                    if not ca_chain==None:
+                        ca_chain = os.path.join(current_dir,ca_chain)
+
+                    nc = create_ssl_context(os.path.join(current_dir,'util','tmp_dh_file'),ciphers,os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert))
                     if connection.total_renegotiations()>3:
                         connection.shutdown()
                         connection.close()
                         RedServ.debugger(3,"Nuked an SSL conn. Too many renegotiations.")
-                    if not connection.get_servername()==None:
-                        connection.set_tlsext_host_name(connection.get_servername().encode('utf-8'))
-                    return([b'http/1.1',b'http/1.0'])
-                
-                def create_ssl_context(dhparams,ciphers,privkey,ca_chain,cert):
-                    config = RedServ.get_config()
-                    c = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
-                    options = 0
-                    for sel_option in pyopenssl_ssl_ops:
-                        options = options | sel_option
-                    c.set_options(options)
-                    c.load_tmp_dh(dhparams)
-                    c.set_tmp_ecdh(OpenSSL.crypto.get_elliptic_curve('secp384r1'))
-                    if ciphers==None:
-                        if "ciphers" in config["HTTPS"]:
-                            ciphers = config["HTTPS"]["ciphers"]
-                        else:
-                            ciphers = ':'.join(default_ciphers)
-                    if not '@STRENGTH' in ciphers:
-                        ciphers = ciphers+':@STRENGTH'
-                    c.set_cipher_list(ciphers)
-                    c.use_privatekey_file(privkey)
-                    if not ca_chain==None:
-                        c.load_verify_locations(ca_chain)
-                    c.use_certificate_file(cert)
-                    c.set_npn_advertise_callback(npn_callback)
-                    #c.set_alpn_select_callback(alpn_callback)
-                    return(c)
-                
-                def pick_certificate(connection):
-                    config = RedServ.get_config()
-                    key = None
-                    cert = None
-                    ciphers = None
-                    if not connection.get_servername()==None:
-                        hostname_recieved = connection.get_servername()
-                    else:
-                        hostname_recieved = "default"
+                    connection.set_context(nc)
 
-                    try:
-                        if 'certificates' in config['HTTPS']:
-                            if hostname_recieved in config['HTTPS']['certificates']:
-                                (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],hostname_recieved)
-                            else:
-                                if 'wildcard-certificates' in config['HTTPS']:
-                                    for cert_chain in config['HTTPS']['wildcard-certificates']:
-                                        if cert_chain.startswith("*"):
-                                            if hostname_recieved.endswith(cert_chain[1:]):
-                                                (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
-                                        if cert_chain.endswith("*"):
-                                            if hostname_recieved.startswith(cert_chain[:-1]):
-                                                (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['wildcard-certificates'],cert_chain)
-                                else:
-                                    (key,cert,ca_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],'default')
-                    except KeyError:
-                        pass
-                    if not (key==None and cert==None):
-                        if not ca_chain==None:
-                            ca_chain = os.path.join(current_dir,ca_chain)
-                        
-                        nc = create_ssl_context(os.path.join(current_dir,'util','tmp_dh_file'),ciphers,os.path.join(current_dir,key),ca_chain,os.path.join(current_dir,cert))
-                        if connection.total_renegotiations()>3:
-                            connection.shutdown()
-                            connection.close()
-                            RedServ.debugger(3,"Nuked an SSL conn. Too many renegotiations.")
-                        connection.set_context(nc)
-                
-                dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
-                if not os.path.exists(dh_key_file_loc):
-                    print("INFO: Generating DH key for HTTPS. Please wait.")
-                    p = subprocess.call(["openssl","dhparam","-out",dh_key_file_loc,"2048"], stderr=subprocess.PIPE)
-                    print("INFO: HTTPS DH key generated at: "+dh_key_file_loc)
-                if 'default' in config['HTTPS']['certificates']:
-                    (self.private_key,self.certificate,self.certificate_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],'default')
-                if not self.certificate_chain:
-                    self.certificate_chain = None
-                
-                
-                
-                c = create_ssl_context(dh_key_file_loc,ciphers,self.private_key,self.certificate_chain,self.certificate)
-                c.set_tlsext_servername_callback(pick_certificate)
-                self.context = c
-                return c
+            dh_key_file_loc = os.path.join(current_dir,'util','tmp_dh_file')
+            if not os.path.exists(dh_key_file_loc):
+                print("INFO: Generating DH key for HTTPS. Please wait.")
+                p = subprocess.call(["openssl","dhparam","-out",dh_key_file_loc,"2048"], stderr=subprocess.PIPE)
+                print("INFO: HTTPS DH key generated at: "+dh_key_file_loc)
+            if 'default' in config['HTTPS']['certificates']:
+                (self.private_key,self.certificate,self.certificate_chain,ciphers) = RedServ.certloader(config['HTTPS']['certificates'],'default')
+            if not self.certificate_chain:
+                self.certificate_chain = None
 
-        ssl_adapters['custom-pyopenssl'] = Pyopenssl
+
+
+            c = create_ssl_context(dh_key_file_loc,ciphers,self.private_key,self.certificate_chain,self.certificate)
+            c.set_tlsext_servername_callback(pick_certificate)
+            self.context = c
+            return c
+
+    ssl_adapters['custom-pyopenssl'] = Pyopenssl
     return(ssl_adapters)

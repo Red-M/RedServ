@@ -1584,6 +1584,7 @@ def web_init(watchdogs):
             RedServ.servers['HTTPS'][port].shutdown_timeout=1
             RedServ.servers['HTTPS'][port].socket_timeout=3
             #RedServ.servers['HTTPS'][port].statistics=True
+            # RedServ.servers['HTTPS'][port].ssl_module = 'custom-ssl'
             RedServ.servers['HTTPS'][port].ssl_module = 'custom-pyopenssl'
             RedServ.servers['HTTPS'][port].ssl_certificate = os.path.join(current_dir,conf['HTTPS']['cert'])
             RedServ.servers['HTTPS'][port].ssl_private_key = os.path.join(current_dir,conf['HTTPS']['cert_private_key'])
